@@ -91,44 +91,54 @@ def load(fp=here("cache", "dump.csv")):
     return pd.read_csv(fp)
 
 
-def load_training_data(
-        online=True,
+def cleanup(
+        x: pd.DataFrame,
         nan_floor_row=0.9,
         nan_floor_col=0.75,
+        columns=list(feature_scales)+["party_id"]
 ):
-    """Load cleaned up training dataset
-
-    Parameters
-    ----------
-    offline : bool
-        Use cached dataset
-    na_row : float
-        Drop rows with NaN ratio larger than this
-    na_col : float
-        Drop columns with NaN ratio larger than this
-
-    """
-
-    x = load() if not online else download()
-    x = x[COLUMN_INTERVALS]
-
+    # Drop unwanted columns
+    x = x[columns]
     # Fix data types column-wise
     x = x.apply(lambda s: pd.to_numeric(s, errors="coerce"))
     # Drop columns
     x = x.dropna(axis=1, thresh=nan_floor_col*x.shape[0])
     # Drop rows
     x = x.dropna(axis=0, thresh=nan_floor_row*x.shape[1])
+    return x
 
-    X = x.values
+def prepare(
+        x: pd.DataFrame,
+        groupby_feature="party_id",
+) -> np.ndarray:
+    """Group by parties and build heuristic weights for cells
 
-    # Scale to reasonable interval
-    scaler = utils.IntervalScaler([
-        v for (k, v) in COLUMN_INTERVALS.items() if k in x.columns
-    ])
-    X = scaler.transform(X)
 
-    # Impute missing values
-    imputer = IterativeImputer(max_iter=100, random_state=0).fit(X)
-    X = imputer.transform(X)
+    The weights are calculated with the following logic:
 
-    return (X, x.index, x.columns)
+    - NaN's have zero weight.
+    - Otherwise the weight of each grouped cell is the number of samples
+      divided by estimated variance.
+    - The group variance is estimated by a weighted sum of (1) the mean of cell variances
+      belonging to the same feature and (2) the sample variance of the cell.
+    - If there is only one sample in the cell, the mean variance is used.
+
+    NOTE: The weights are sensible only if data is in comparable units.
+
+    """
+    mean = x.groupby(x[groupby_feature]).mean()
+    var = x.groupby(x[groupby_feature]).var()
+    var_0 = var.mean(axis=0)
+    var_0 = 1
+    counts = x[groupby_feature].value_counts().loc[mean.index]
+    var_estimate = (
+        var
+        .fillna(var_0)
+        .mul(counts, axis=0)
+        .add(var_0)
+        .div(counts.add(1), axis=0)
+    ).add(1)
+    weights = (
+        1. / var_estimate.div(counts.pow(0.5), axis=0)
+    ).mul(mean.notnull().mul(1))
+    return (mean, weights)

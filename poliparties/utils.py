@@ -65,7 +65,7 @@ class IntervalScaler():
 
     def __init__(self, intervals: list):
         (a, b) = np.array(intervals).T
-        self.bias = (a + b) / (b - a) / 2.
+        self.bias = -(a + b) / (b - a) / 2.
         self.w = 1. / (b - a)
         self.inverse_bias = (a + b) / 2.
         self.inverse_w = b - a

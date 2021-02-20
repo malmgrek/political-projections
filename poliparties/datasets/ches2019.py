@@ -2,19 +2,16 @@
 
 https://www.chesdata.eu/2019-chapel-hill-expert-survey
 
+FIXME: Fix Unnamed columns in DataFrame
+
 """
 
 from io import StringIO
 import os
 import requests
-from typing import Callable
 
 import numpy as np
 import pandas as pd
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer
-
-from poliparties import utils
 
 
 def here(*args):
@@ -22,9 +19,10 @@ def here(*args):
 
 
 #
-# Manually picked subset of columns and their min/max limits, based on survey docs
+# Manually picked subset of columns and their min/max limits, based on survey
+# documentation PDF
 #
-COLUMN_INTERVALS = {
+feature_scales = {
     "position": [1.0, 7.0],
     "eu_salience": [0.0, 10.0],
     "eu_dissent": [0.0, 10.0],
@@ -77,18 +75,27 @@ COLUMN_INTERVALS = {
 
 
 def download():
+    """Download dataset from web
+
+    """
     res = requests.get("https://www.chesdata.eu/s/CHES2019_experts.csv")
     return pd.read_csv(StringIO(res.text))
 
 
-def update(fp=here("cache", "dump.csv")):
+def update(filepath=here("cache", "dump.csv")):
+    """Download and save
+
+    """
     x = download()
-    x.to_csv(fp)
+    x.to_csv(filepath)
     return
 
 
-def load(fp=here("cache", "dump.csv")):
-    return pd.read_csv(fp)
+def load(filepath=here("cache", "dump.csv")):
+    """Load from disk
+
+    """
+    return pd.read_csv(filepath)
 
 
 def cleanup(
@@ -97,6 +104,9 @@ def cleanup(
         nan_floor_col=0.75,
         columns=list(feature_scales)+["party_id"]
 ):
+    """Select subset of columns, fix data types, remove NaN
+
+    """
     # Drop unwanted columns
     x = x[columns]
     # Fix data types column-wise
@@ -107,38 +117,15 @@ def cleanup(
     x = x.dropna(axis=0, thresh=nan_floor_row*x.shape[1])
     return x
 
+
 def prepare(
         x: pd.DataFrame,
         groupby_feature="party_id",
 ) -> np.ndarray:
-    """Group by parties and build heuristic weights for cells
-
-
-    The weights are calculated with the following logic:
-
-    - NaN's have zero weight.
-    - Otherwise the weight of each grouped cell is the number of samples
-      divided by estimated variance.
-    - The group variance is estimated by a weighted sum of (1) the mean of cell variances
-      belonging to the same feature and (2) the sample variance of the cell.
-    - If there is only one sample in the cell, the mean variance is used.
-
-    NOTE: The weights are sensible only if data is in comparable units.
+    """Group by parties and build weights for cells
 
     """
-    mean = x.groupby(x[groupby_feature]).mean()
-    var = x.groupby(x[groupby_feature]).var()
-    var_0 = var.mean(axis=0)
-    var_0 = 1
-    counts = x[groupby_feature].value_counts().loc[mean.index]
-    var_estimate = (
-        var
-        .fillna(var_0)
-        .mul(counts, axis=0)
-        .add(var_0)
-        .div(counts.add(1), axis=0)
-    ).add(1)
-    weights = (
-        1. / var_estimate.div(counts.pow(0.5), axis=0)
-    ).mul(mean.notnull().mul(1))
-    return (mean, weights)
+    agg = x.groupby(x[groupby_feature]).median()
+    weights = agg.notnull().mul(1)
+    # X_train, w, features
+    return (agg.values, weights.values, agg.columns)

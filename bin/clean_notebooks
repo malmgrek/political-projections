@@ -1,0 +1,4 @@
+#!/usr/bin/sh
+
+# Clear Jupyter notebooks before committing
+jupyter nbconvert --ClearOutputPreprocessor.enabled=True --inplace notebooks/*ipynb

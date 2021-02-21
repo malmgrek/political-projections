@@ -7,6 +7,7 @@ FIXME: Fix Unnamed columns in DataFrame
 """
 
 from io import StringIO
+import logging
 import os
 import requests
 
@@ -74,12 +75,21 @@ feature_scales = {
 }
 
 
+url = "https://www.chesdata.eu/s/CHES2019_experts.csv"
+
+
+def read_csv(res):
+    return pd.read_csv(StringIO(res.text))
+
+
 def download():
     """Download dataset from web
 
     """
+    logging.info("GET {}".format(url.format(url)))
     res = requests.get("https://www.chesdata.eu/s/CHES2019_experts.csv")
-    return pd.read_csv(StringIO(res.text))
+    res.raise_for_status()
+    return read_csv(res)
 
 
 def update(filepath=here("cache", "dump.csv")):
@@ -87,6 +97,7 @@ def update(filepath=here("cache", "dump.csv")):
 
     """
     x = download()
+    logging.info("Saved to file {}".format(filepath))
     x.to_csv(filepath)
     return
 
@@ -126,6 +137,6 @@ def prepare(
 
     """
     agg = x.groupby(x[groupby_feature]).median()
-    weights = agg.notnull().mul(1)
-    # X_train, w, features
-    return (agg.values, weights.values, agg.columns)
+    X = agg.values
+    features = agg.columns
+    return (X, features)

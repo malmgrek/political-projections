@@ -1,45 +1,59 @@
-"""Data analysis"""
-
-
-# TODO: Use sample number weights in KDE
-
+"""Data analysis functionality"""
 
 import numpy as np
-import pandas as pd
+from sklearn.model_selection import GridSearchCV
+from sklearn.neighbors import KernelDensity
 
 
-def estimate_gaussian(y: np.ndarray):
-    """Estimate the mean and covariance from a set of samples
+class IntervalScaler():
+    """Affine transform from a given interval to [-1, 1]
+
+    TODO: Unit test
 
     """
-    y = np.array(y)
-    mean = y.mean(axis=0)
-    cov = np.NaN if len(y) < 3 else np.cov(y.T)
-    return [mean, cov]
+
+    def __init__(self, intervals: list):
+        (a, b) = np.array(intervals).T
+        self.bias = -(a + b) / (b - a) / 2.
+        self.w = 1. / (b - a)
+        self.inverse_bias = (a + b) / 2.
+        self.inverse_w = b - a
+
+    def transform(self, X: np.ndarray):
+        return X * self.w + self.bias
+
+    def inverse_transform(self, X: np.ndarray):
+        return X * self.inverse_w + self.inverse_bias
 
 
-def split_by_labels(y: np.ndarray, labels: np.ndarray):
-    # x is typically a transformed version of training data
-    label_counts = pd.Series(labels).value_counts()
-    return [y[labels == i, :] for i in label_counts.index]
+def fit_kde(Y: np.ndarray):
+    """Fit Scikit-Learn's KernelDensity object
+
+    Grid searches for a satisfactory `bandwidth` parameter.
+
+    """
+    params = {'bandwidth': np.logspace(-1, 1, 20)}
+    grid = GridSearchCV(KernelDensity(), params)
+    grid.fit(Y)
+    kde = grid.best_estimator_
+    return kde
 
 
-def estimate_spheres(y: np.ndarray, labels: np.ndarray):
-    # TODO: Unit test
-    groups = split_by_labels(y, labels)
-    dim = y.shape[1]
-    data = [
-        # sqrt: var -> std
-        # nth root: area -> radius
-        np.hstack((
-            mean,
-            [0] if np.isnan(np.sum(cov)) else
-            [np.linalg.det(cov) ** (1 / dim / 2)]
-        ))
-        for (mean, cov) in map(estimate_gaussian, groups)
-    ]
-    return pd.DataFrame(
-        data=data,
-        index=pd.Series(labels).value_counts(),
-        columns=["mean_x", "mean_y", "r_std"]
+def score_density_grid(kde: KernelDensity, Y: np.ndarray, num=100):
+
+    def lim(y, i):
+        mi = y[:, i].min()
+        ma = y[:, i].max()
+        return [mi - 0.2 * abs(mi), ma + 0.2 * abs(ma)]
+
+    xlim = lim(Y, 0)
+    ylim = lim(Y, 1)
+    (x, y) = np.meshgrid(
+        np.linspace(*xlim, num=num),
+        np.linspace(*ylim, num=num)
     )
+    density = np.exp(
+        kde.score_samples(np.c_[x.ravel(), y.ravel()])
+    ).reshape(num, num)
+
+    return (x, y, density, xlim, ylim)

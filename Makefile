@@ -1,10 +1,10 @@
 ##
-# Poliparties
+# Dimred-demo
 #
 # @file
 # @version 0.1
 
-IMAGENAME=poliparties
+IMAGENAME=dimred-demo
 
 #
 # Docker

@@ -11,8 +11,8 @@ from plotly.subplots import make_subplots
 from sklearn import decomposition, impute, preprocessing
 from sklearn.experimental import enable_iterative_imputer
 
-from poliparties import analysis, plot
-from poliparties.datasets import ches2019
+from dimred import analysis, plot
+from dimred.datasets import ches2019
 
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']

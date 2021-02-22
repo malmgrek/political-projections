@@ -1,4 +1,4 @@
-# Poliparties – political party demo
+# Dimensionality reduction demo
 
 
 ## Introduction

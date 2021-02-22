@@ -1,17 +1,19 @@
 from setuptools import setup
 
 setup(
-    name="poliparties",
-    description="Analyzing political survey data",
-    url="http://github.com/malmgrek/poliparties",
+    name="dimred",
+    description="Dimensionality reduction demo",
+    url="http://github.com/malmgrek/dimred-demo",
     author="Stratos Staboulis",
     license="MIT",
-    packages=["poliparties"],
+    packages=["dimred"],
     install_requires=[
         "numpy",
+        "pandas",
         "scikit-learn",
     ],
     extras_require={
         "test": ["pytest"],
+        "dash": ["dash", "flask_caching"]
     },
 )

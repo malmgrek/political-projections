@@ -9,7 +9,7 @@ from functools import reduce
 import numpy as np
 import pytest
 
-from poliparties.datasets import ches2019
+from dimred.datasets import ches2019
 
 
 @pytest.mark.webtest

@@ -6,3 +6,5 @@ tmp/
 *egg-info
 *.ipynb_checkpoints
 notebooks/*.html
+*cache-directory
+*cache

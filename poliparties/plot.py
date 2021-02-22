@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def create_colors(num, cm):
+def create_colors(num, cm=plt.cm.gist_rainbow):
     """Create a sequence of colors
 
     """

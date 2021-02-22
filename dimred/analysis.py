@@ -1,8 +1,10 @@
 """Data analysis functionality"""
 
 import numpy as np
+from sklearn.experimental import enable_iterative_imputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
+from sklearn.impute import IterativeImputer
 
 
 class IntervalScaler():
@@ -57,3 +59,15 @@ def score_density_grid(kde: KernelDensity, Y: np.ndarray, num=100):
     ).reshape(num, num)
 
     return (x, y, density, xlim, ylim)
+
+
+def impute(X, *args, **kwargs):
+    """Impute missing values using Sklearn iterative imputer
+
+    """
+    imputer = IterativeImputer(*args, **kwargs).fit(X)
+    return imputer.transform(X)
+
+
+def prune():
+    return

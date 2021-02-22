@@ -1,9 +1,15 @@
 """Plotly Dash app for displaying analysis results
 
 TODO:
+- CB: NaN filtering parameters
+- Map samples to the integer grid
+- Plot principal values
 - Train/test split validation
 
+
 """
+
+import random
 
 import dash
 import dash_core_components as dcc
@@ -41,20 +47,24 @@ cache = Cache(
 TIMEOUT = 10
 
 
+def checklist_to_bool(x):
+    return x is not None and "v" in x
+
+
 def IntervalScaler(features):
     return analysis.IntervalScaler([
         v for (k, v) in ches2019.feature_scales.items() if k in features
     ])
 
 
-def reorder_features(X, features):
+def reorder_features(X, features, corrcov):
     #
     # TODO/FIXME: This is an ugly workaround
     # for ordering the features as in the dendrogram
     #
-    corr = spearmanr(X).correlation
+    C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
     fig = ff.create_dendrogram(
-        corr,
+        C,
         orientation="bottom",
         labels=features,
         linkagefun=hierarchy.ward
@@ -70,26 +80,33 @@ def get_training_data():
     x = ches2019.download()
     # x = ches2019.load()
     x = ches2019.cleanup(x, nan_floor_row=0.9, nan_floor_col=0.75)
-    x = x.dropna()
     (X, features) = ches2019.prepare(x)
-    X = analysis.impute(X, max_iter=21)
     return pd.DataFrame(X, columns=features).to_json(orient="split")
 
 
-def Dataset(whiten=None, prune_correlated=None):
-    whiten_bool = not (whiten is None or "v" not in whiten)
-    # whiten = False if whiten is None else True
+def Dataset(meanvar=None, impute=None, corrcov=None):
+
+    meanvar_bool = checklist_to_bool(meanvar)
+    impute_bool = checklist_to_bool(impute)
+
     training_data = pd.read_json(get_training_data(), orient="split")
-    X = training_data.values
-    features = training_data.columns
-    scaler = (
-        IntervalScaler(features) if not whiten_bool else
-        preprocessing.StandardScaler().fit(X)
+
+    # Optionally impute
+    X = (
+        analysis.impute(training_data.values, max_iter=21) if impute_bool
+        else training_data.dropna().values
     )
+    features = training_data.columns
+
+    scaler = (
+        analysis.StandardScaler().fit(X) if meanvar_bool else
+        IntervalScaler(features)
+    )
+
+    # Scale
     X = scaler.transform(X)
-    (X, features) = reorder_features(X, features)
-    if prune_correlated is not None:
-        pass
+    (X, features) = reorder_features(X, features, corrcov)
+
     return (X, features, scaler)
 
 
@@ -119,24 +136,42 @@ app.layout = html.Div([
                 value="pca",
                 style={"margin-top": "2em", "width": "20em"}
             ),
+            dcc.Dropdown(
+                id="dropdown-corrcov",
+                options=[
+                    {"label": "Covariance in heatmap", "value": "cov"},
+                    {"label": "Spearman rank in heatmap", "value": "corr"},
+                ],
+                value="cov",
+                style={"margin-top": "1em", "width": "20em"}
+            ),
+            dcc.Input(
+                id="input-components",
+                type="number",
+                placeholder="Number of components visualized",
+                min=1,
+                max=1000,
+                value=3,
+                style={"margin-top": "1em", "width": "20em"}
+            ),
+            dcc.Checklist(
+                id="checklist-meanvar",
+                options=[
+                    {"label": "Map to zero mean and unit variance", "value": "v"},
+                ],
+                style={"margin-top": "1em", "width": "20em"}
+            ),
+            dcc.Checklist(
+                id="checklist-impute",
+                options=[
+                    {"label": "Impute NaNs (otherwise drop)", "value": "v"},
+                ],
+                style={"margin-top": "1em", "width": "20em"}
+            ),
             dcc.Checklist(
                 id="checklist-whiten",
                 options=[
-                    {"label": "Whitened data", "value": "v"},
-                ],
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-            dcc.Checklist(
-                id="checklist-corr",
-                options=[
-                    {"label": "Prune correlated features", "value": "v"},
-                ],
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-            dcc.Checklist(
-                id="checklist-dropna",
-                options=[
-                    {"label": "Drop NaNs", "value": "v"},
+                    {"label": "Whiten", "value": "v"},
                 ],
                 style={"margin-top": "1em", "width": "20em"}
             ),
@@ -158,12 +193,14 @@ app.layout = html.Div([
     Output("graph-training-heatmap", "figure"),
     [
         Input("dropdown-method", "value"),
-        Input("checklist-whiten", "value")
+        Input("checklist-meanvar", "value"),
+        Input("checklist-impute", "value"),
+        Input("dropdown-corrcov", "value"),
     ]
 )
-def update_training_heatmap(method, whiten):
+def update_training_heatmap(method, meanvar, impute, corrcov):
 
-    (X, features, scaler) = Dataset(whiten)
+    (X, features, scaler) = Dataset(meanvar, impute, corrcov)
 
     # Plot dataset
     fig = px.imshow(
@@ -172,7 +209,7 @@ def update_training_heatmap(method, whiten):
         height=800,
         width=800,
         color_continuous_scale="Agsunset",
-        title="Processed training data"
+        title="Processed training data, shape: {}".format(X.shape)
     )
 
     return fig
@@ -182,17 +219,19 @@ def update_training_heatmap(method, whiten):
     Output("graph-corr-heatmap", "figure"),
     [
         Input("dropdown-method", "value"),
-        Input("checklist-whiten", "value")
+        Input("checklist-meanvar", "value"),
+        Input("checklist-impute", "value"),
+        Input("dropdown-corrcov", "value"),
     ]
 )
-def update_corr_heatmap(method, whiten):
+def update_corr_heatmap(method, meanvar, impute, corrcov):
 
-    (X, features, scaler) = Dataset(whiten)
-    corr = spearmanr(X).correlation
+    (X, features, scaler) = Dataset(meanvar, impute, corrcov)
+    C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
     # corr_linkage = hierarchy.ward(corr)
 
     fig = ff.create_dendrogram(
-        corr,
+        C,
         orientation="bottom",
         labels=features,
         linkagefun=hierarchy.ward
@@ -203,7 +242,7 @@ def update_corr_heatmap(method, whiten):
 
     # Create Side Dendrogram
     dendro_side = ff.create_dendrogram(
-        corr,
+        C,
         orientation="right",
         labels=features,
         linkagefun=hierarchy.ward
@@ -219,7 +258,7 @@ def update_corr_heatmap(method, whiten):
     dendro_leaves = dendro_side["layout"]["yaxis"]["ticktext"]
 
     dendro_leaves = list(range(len(dendro_leaves)))
-    heat_data = corr
+    heat_data = C
     heat_data = heat_data[dendro_leaves,:]
     heat_data = heat_data[:,dendro_leaves]
 
@@ -282,21 +321,27 @@ def update_corr_heatmap(method, whiten):
     Output("graph-components", "figure"),
     [
         Input("dropdown-method", "value"),
-        Input("checklist-whiten", "value")
+        Input("checklist-meanvar", "value"),
+        Input("checklist-impute", "value"),
+        Input("checklist-whiten", "value"),
+        Input("dropdown-corrcov", "value"),
+        Input("input-components", "value"),
     ]
 )
-def update_components(method, whiten):
+def update_components(method, meanvar, impute, whiten, corrcov, components):
 
-    (X, features, scaler) = Dataset(whiten)
+    whiten_bool = checklist_to_bool(whiten)
+
+    (X, features, scaler) = Dataset(meanvar, impute, corrcov)
 
     # Form decomposition
     if method == "pca":
-        decomposer = decomposition.PCA().fit(X)
+        decomposer = decomposition.PCA(whiten=whiten_bool).fit(X)
     if method == "ica":
         decomposer = decomposition.FastICA(
             random_state=np.random.RandomState(42),
-            whiten=False,
-            max_iter=1000
+            whiten=whiten_bool,
+            max_iter=2000
         ).fit(X)
     if method == "fa":
         decomposer = decomposition.FactorAnalysis(rotation="varimax").fit(X)
@@ -306,7 +351,7 @@ def update_components(method, whiten):
     # V = U
     V = scaler.inverse_transform(U)
 
-    # Fit KDE and sample
+    # Fit KDE and sample FIXME: Fix sampling to limits using Numpy hack
     kde = analysis.fit_kde(Y_2d)
     num_samples = 10
     Y_samples = kde.sample(num_samples)
@@ -325,9 +370,13 @@ def update_components(method, whiten):
         # X_samples = decomposer.inverse_transform(Y_samples_full)
 
     fig = make_subplots(
-        rows=3,
+        rows=4,
         cols=2,
         specs=[
+            [
+                {"rowspan": 1, "colspan": 2},
+                None
+            ],
             [
                 {"rowspan": 1, "colspan": 2},
                 None
@@ -342,9 +391,10 @@ def update_components(method, whiten):
             ],
         ],
         subplot_titles=[
-            "Two main components (in orignal coordinates)" + (
+            "Components in normalized coordinates",
+            "Components (in orignal coordinates)" + (
                 ", explained variance: {0:.0%}".format(
-                    decomposer.explained_variance_ratio_[:2].sum()
+                    decomposer.explained_variance_ratio_[:components].sum()
                 ) if method == "pca" else ""
             ),
             "Probability density",
@@ -354,8 +404,29 @@ def update_components(method, whiten):
             ["Reverse transformation for factorial analysis not supported :("]
         )
     )
-    fig.append_trace(go.Scatter(x=features, y=V[0], name="Component 0"), 1, 1)
-    fig.append_trace(go.Scatter(x=features, y=V[1], name="Component 1"), 1, 1)
+
+    colors = random.sample(px.colors.qualitative.Plotly, components)
+    for (i, color) in enumerate(colors):
+        fig.append_trace(
+            go.Scatter(
+                x=features,
+                y=U[i],
+                name="Component {}".format(i),
+                line={"color": color}
+            ),
+            1, 1
+        )
+    for (i, color) in enumerate(colors):
+        fig.append_trace(
+            go.Scatter(
+                x=features,
+                y=V[i],
+                line={"color": color},
+                showlegend=False
+            ),
+            2, 1
+        )
+
     fig.append_trace(
         go.Surface(
             x=x,
@@ -364,7 +435,7 @@ def update_components(method, whiten):
             showscale=False,
             colorscale="agsunset"
         ),
-        2, 1
+        3, 1
     )
     fig.append_trace(
         go.Scatter(
@@ -378,7 +449,7 @@ def update_components(method, whiten):
             },
             name="Projected parties"
         ),
-        2, 2
+        3, 2
     )
     fig.append_trace(
         go.Contour(
@@ -390,7 +461,7 @@ def update_components(method, whiten):
             showscale=False,
             colorscale="agsunset"
         ),
-        2, 2
+        3, 2
     )
     for (i, Y_sample) in enumerate(Y_samples):
         fig.append_trace(
@@ -401,7 +472,7 @@ def update_components(method, whiten):
                 marker={"size": 18},
                 name="Sample {}".format(i)
             ),
-            2, 2
+            3, 2
         )
     if method in ["pca", "ica"]:
         for X_sample in X_samples:
@@ -411,12 +482,12 @@ def update_components(method, whiten):
                     y=X_sample,
                     showlegend=False
                 ),
-                3, 1
+                4, 1
             )
     if method == "fa":
         fig.append_trace(
             go.Scatter(),
-            3, 1
+            4, 1
         )
 
     fig.update_layout(

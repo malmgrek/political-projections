@@ -35,7 +35,7 @@ Install the package and its dependencies
 ** **You should run this only in a Python virtual environment** ** 
 
 ``` shell
-make devenv
+make devenv  # **Run only in VIRTUAL ENVIRONMENT!**
 ```
 
 ### Unit tests

@@ -9,7 +9,7 @@ read -p "Please STOP If your not in Python virtual environment. Stop? [y/n]" -n 
 echo
 if [[ $REPLY =~ ^[Nn]$ ]]
 then
-    pip install -r requirements.txt
-    pip install jupyter
-    pip install -e .
+    pip install --user -r requirements.txt
+    pip install --user jupyter
+    pip install --user -e .
 fi

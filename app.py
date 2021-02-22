@@ -39,7 +39,7 @@ def Scaler(features):
 
 @cache.memoize(timeout=TIMEOUT)
 def get_training_data():
-    x = ches2019.download()  # FIXME FIXME FIXME
+    x = ches2019.download()
     x = ches2019.cleanup(x, nan_floor_row=0.9, nan_floor_col=0.75)
     (X, features) = ches2019.prepare(x)
     imputer = impute.IterativeImputer(max_iter=21).fit(X)

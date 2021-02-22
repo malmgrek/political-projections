@@ -10,22 +10,39 @@ from sklearn.impute import IterativeImputer
 class IntervalScaler():
     """Affine transform from a given interval to [-1, 1]
 
-    TODO: Unit test
+    forward: (x - 0.5 * (a + b)) / (b - a)
+    inverse: y * (b - a) + 0.5 * (b - a)
 
     """
 
-    def __init__(self, intervals: list):
+    def __init__(self, intervals: list, whiten=False):
         (a, b) = np.array(intervals).T
-        self.bias = -(a + b) / (b - a) / 2.
-        self.w = 1. / (b - a)
-        self.inverse_bias = (a + b) / 2.
-        self.inverse_w = b - a
+        self.a = a
+        self.b = b
 
     def transform(self, X: np.ndarray):
-        return X * self.w + self.bias
+        return 2 * (X - 0.5 * (self.a + self.b)) / (self.b - self.a)
 
-    def inverse_transform(self, X: np.ndarray):
-        return X * self.inverse_w + self.inverse_bias
+    def inverse_transform(self, Y: np.ndarray):
+        return 0.5 * Y * (self.b - self.a) + 0.5 * (self.b + self.a)
+
+
+class StandardScaler():
+
+    def __init__(self, mean=0, std=1):
+        self.mean = mean
+        self.std = std
+
+    def fit(self, X):
+        mean = X.mean(axis=0)
+        std = X.std(axis=0)
+        return StandardScaler(mean=mean, std=std)
+
+    def transform(self, X):
+        return (X - self.mean) / self.std
+
+    def inverse_transform(self, Y):
+        return Y * self.std + self.mean
 
 
 def fit_kde(Y: np.ndarray):
@@ -67,7 +84,3 @@ def impute(X, *args, **kwargs):
     """
     imputer = IterativeImputer(*args, **kwargs).fit(X)
     return imputer.transform(X)
-
-
-def prune():
-    return

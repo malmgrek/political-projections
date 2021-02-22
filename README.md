@@ -1,6 +1,21 @@
 # Dimensionality reduction demo
 
 
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+- [Introduction](#introduction)
+- [Code instructions](#code-instructions)
+    - [Quick start](#quick-start)
+    - [Information for developers](#information-for-developers)
+        - [Install development environment](#install-development-environment)
+        - [Unit tests](#unit-tests)
+        - [Jupyter notebooks and Git](#jupyter-notebooks-and-git)
+
+<!-- markdown-toc end -->
+
+
+
 ## Introduction
 
 This project implements some simple dimensionality reduction methods for the
@@ -10,7 +25,7 @@ principle similar methods are applicable to any (e.g.) standardizable survey
 datasets. However, the main aim is to demonstrate a possible layout of a Python
 data analysis project.
 
-## Instructions
+## Code instructions
 
 ### Quick start
 
@@ -26,26 +41,25 @@ Dash](https://dash.plotly.com/ "Dash") application running at
 <http://localhost:8050>.
 
 
-### Developer instructions
+### Information for developers
 
-### Install development environment
+#### Install development environment
 
 Install the package and its dependencies 
-
-** **You should run this only in a Python virtual environment** ** 
 
 ``` shell
 make devenv  # **Run only in VIRTUAL ENVIRONMENT!**
 ```
 
-### Unit tests
+
+#### Unit tests
 
 ``` python
 pytest -v          # Run all tests except webtests
 pytest --webtest   # Run all tests including webtests
 ```
 
-### Jupyter notebooks and Git
+#### Jupyter notebooks and Git
 If you want to track Jupyter notebooks, purge them before staging:
 
 ``` shell

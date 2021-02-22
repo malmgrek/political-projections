@@ -47,8 +47,10 @@ Dash](https://dash.plotly.com/ "Dash") application running at
 
 Install the package and its dependencies 
 
+Using Conda:
+
 ``` shell
-make devenv  # **Run only in VIRTUAL ENVIRONMENT!**
+conda env create --force --name dimred-dev --file environment.yml
 ```
 
 

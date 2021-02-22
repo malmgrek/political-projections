@@ -7,12 +7,6 @@
 IMAGENAME=dimred-demo
 
 #
-# Install package in virtual env
-#
-devenv:
-	bash bin/setup_devenv.sh
-
-#
 # Docker
 #
 

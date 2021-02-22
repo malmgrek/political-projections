@@ -1,0 +1,13 @@
+dependencies:
+  - matplotlib
+  - numpy
+  - pandas
+  - pip
+  - pytest
+  - requests=2.24.0
+  - scikit-learn
+  - urllib3=1.25.10
+  - pip:
+    - jupyter
+    - flask_caching
+    - dash

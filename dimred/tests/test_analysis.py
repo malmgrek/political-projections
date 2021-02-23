@@ -1,5 +1,6 @@
 """Unit tests for the Analysis module"""
 
+import itertools
 
 import numpy as np
 from dimred import analysis
@@ -63,12 +64,19 @@ def test_interval_scaler():
     return
 
 
-def test_bound_to_axes2d():
-    proj = np.array([[1, 0, 0], [0, 1, 0]])
-    interval = [-1, 1]
-    ((y0, y0_), (y1, y1_)) = analysis.bounds_to_axes2d(interval, 0, 3, proj=proj)
-    assert_array_equal(y0, [-1, 0])
-    assert_array_equal(y0_, [0, 1])
-    assert_array_equal(y1, [1, 0])
-    assert_array_equal(y1_, [0, -1])
+def test_intersect_plane2_cuboid():
+    # Trivial case
+    normal = np.array([0, 0, 1])
+    a = np.array([0, 0, 0.5])
+    vtxs = list(itertools.product([0, 1], [0, 1], [0, 1]))
+    points = analysis.intersect_plane2_cuboid(normal, a, vtxs)
+    assert_array_equal(
+        points,
+        np.array([
+            [0, 0, 0.5],
+            [0, 1, 0.5],
+            [1, 0, 0.5],
+            [1, 1, 0.5]
+        ])
+    )
     return

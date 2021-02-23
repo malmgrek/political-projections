@@ -1,5 +1,8 @@
 """Data analysis functionality"""
 
+from functools import reduce
+import itertools
+
 import numpy as np
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.model_selection import GridSearchCV
@@ -86,28 +89,51 @@ def impute(X, *args, **kwargs):
     return imputer.transform(X)
 
 
-def project_to_axes2d(x, proj, shift=0):
-    """Calculates normalized projected vector and it's orthogonal vector
+def cuboid_edges(vtxs):
+    """Edges of an N dimensional cuboid as vertex pairs
 
     """
-    y = np.dot(proj, x + shift)
-    y_ = np.dot([[0, 1], [-1, 0]], y)
-    y_ = y_ / np.linalg.norm(y_)
-    import pdb; pdb.set_trace()
-    return (y, y_)
-
-
-def bounds_to_axes2d(
-        interval=[-1, 1],
-        dim=0,
-        n_dims=3,
-        transform=lambda t: t,
-        **kwargs
-):
-    e = (np.arange(n_dims) == dim) * 1
-    e0 = transform(interval[0]) * e
-    e1 = transform(interval[1]) * e
-    return (
-        project_to_axes2d(e0, **kwargs),
-        project_to_axes2d(e1, **kwargs)
+    n_dims = len(vtxs[0])
+    vtxs = list(map(tuple, vtxs))  # Enable hashing
+    pairs = reduce(
+        # Reduce to the pair level
+        lambda cum, this: list(cum) + list(this),
+        (
+            # Form pairs with the base vertex
+            # and sort by distance
+            itertools.product(
+                (v,),
+                sorted(
+                    vtxs,
+                    key=lambda u: np.linalg.norm(
+                        np.subtract(u, v)
+                    )
+                )[1:n_dims+1]  # Take three nearest
+            ) for v in vtxs
+        )
     )
+    unique_pairs = reduce(
+        lambda cum, this: cum if (
+            this in cum or this[::-1] in cum
+        ) else cum + [this],
+        pairs,
+        []
+    )
+    return unique_pairs
+
+
+def intersect_plane2_cuboid(normal, a, vtxs):
+    """Polygon resulting from intersection a N-cube and 2-plane
+
+    """
+    vtx_pairs = cuboid_edges(vtxs)
+    points = []
+    for (vi, vj) in vtx_pairs:
+        t = (
+            np.dot(np.subtract(vj, vi), normal) /
+            np.float64(np.dot(np.subtract(a, vi), normal))
+        )
+        if t >= 1:
+            p = np.add(vi, np.subtract(vj, vi) / t)
+            points = points + [p]
+    return np.array(points)

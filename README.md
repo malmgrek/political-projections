@@ -25,6 +25,40 @@ principle similar methods are applicable to any (e.g.) standardizable survey
 datasets. However, the main aim is to demonstrate a possible layout of a Python
 data analysis project.
 
+## Dimensionality reduction of Chapel Hill 2019 dataset
+
+The Chapel Hill dataset
+[CHESDATA](https://www.chesdata.eu/2019-chapel-hill-expert-survey) contains
+survey data regarding different political parties in EU member states.
+
+### Remarks on the dataset
+
+- The survey has been completed by political scientists, and not directly by party
+members.
+- Some columns are unrelated to
+
+### Methodology
+- Data always centered
+- Standardization not a good idea if the aim is to be able to produce an
+  interesting set of "random parties". Otherwise the difference in variances
+  will be hidden although it is interesting.
+
+### Notes
+
+- Because of curse of dimensionality, it is hard to model density in higher dimensions
+- It is hard to sample in higher dimensions
+- In far-right--liberal axis most variation in absolute terms
+- In traditional left-right axis most correlation
+- Span of smaller components can be added to samples and they will still inverse transform
+  to same values
+- When projected, some original data points fall outside of the polygon. This as expected,
+  as the projection ignores the rest of the PCA coordinates. In particular, if the other coordinates
+  are used, the points will of course inverse map back to the bounds. If we set other components to 0,
+  then the projected points will map outside of the bounds!
+- Separate md file with answers to questions
+
+
+
 ## Code instructions
 
 ### Quick start
@@ -45,14 +79,13 @@ Dash](https://dash.plotly.com/ "Dash") application running at
 
 #### Install development environment
 
-Install the package and its dependencies 
-
-Using Conda:
+Install dependencies and the package using Conda:
 
 ``` shell
-conda env create --force --name dimred-dev --file environment.yml
+conda env create --force --name dimred-demo --file environment.yml
+source /path/to/conda/bin/activate dimred-demo
+pip install -e .
 ```
-
 
 #### Unit tests
 

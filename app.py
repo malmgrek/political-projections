@@ -52,10 +52,11 @@ def IntervalScaler(features):
     return analysis.IntervalScaler([scales[f] for f in features])
 
 
-def reorder_features(X, features, corrcov):
+def shuffle_features(X, features, corrcov):
     #
     # TODO/FIXME/HACK: This is an ugly workaround
-    # for ordering the features as in the dendrogram
+    # for ordering the features as in the dendrogram.
+    # Learn how the SciPy back-end works and use that!
     #
     C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
     fig = ff.create_dendrogram(
@@ -65,9 +66,7 @@ def reorder_features(X, features, corrcov):
         linkagefun=hierarchy.ward
     )
     new_features = list(fig["layout"]["xaxis"]["ticktext"])
-    x = pd.DataFrame(X, columns=features)
-    x = x[new_features]
-    return (x.values, new_features)
+    return new_features
 
 
 @cache.memoize(timeout=TIMEOUT)
@@ -87,7 +86,7 @@ def Dataset(meanvar=None, impute=None, corrcov=None):
     training_data = pd.read_json(get_training_data(), orient="split")
 
     # Optionally impute
-    X_train = (
+    X = (
         analysis.impute_missing(training_data.values, max_iter=21) if impute_bool
         else training_data.dropna().values
     )
@@ -105,19 +104,22 @@ def Dataset(meanvar=None, impute=None, corrcov=None):
             IntervalScaler(_features)
         )
 
+    # So that xs -> ys
     find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
 
-    # Scale once before re-ordering
-    X = create_scaler(X_train, features).transform(X_train)
     # Re-order features
-    (X_reord, features_reord) = reorder_features(X, features, corrcov)
-    X_train_reord = X_train[:, find_permutation(features, features_reord)]
+    shuffled_features = shuffle_features(
+        create_scaler(X, features).transform(X),
+        features,
+        corrcov
+    )
+    X = X[:, find_permutation(features, shuffled_features)]
     # Create new scaler for further use using the re-ordered features set
-    scaler = create_scaler(X_train_reord, features_reord)
+    scaler = create_scaler(X, shuffled_features)
     # Scale training data
-    X = scaler.transform(X_train_reord)
+    X = scaler.transform(X)
 
-    return (X, features_reord, scaler)
+    return (X, shuffled_features, scaler)
 
 
 app.layout = html.Div([

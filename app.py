@@ -98,18 +98,17 @@ def Dataset(meanvar=None, impute=None, corrcov=None):
     )
     features = training_data.columns
 
-    def get_scaler(X_, features_):
-        return (
-            analysis.StandardScaler().fit(X_) if meanvar_bool else
-            IntervalScaler(features_)
-        )
-
-    # scaler = get_scaler(X, features)
-
-    # # Scale FIXME: Scaling not working
-    # X = scaler.transform(X)
+    #
+    # NOTE: We first reorder features with hierarchical clustering analysis
+    # and then define the scaler. The former should be more or less independent
+    # of scaling. However, it might make sense to try scaling before and after
+    # reordering.
+    #
     (X, features) = reorder_features(X, features, corrcov)
-    scaler = get_scaler(X, features)
+    scaler = (
+        analysis.StandardScaler().fit(X) if meanvar_bool else
+        IntervalScaler(features)
+    )
     X = scaler.transform(X)
 
     return (X, features, scaler)
@@ -355,11 +354,11 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
     Y = decomposer.transform(X)
     Y_2d = Y[:, :2]
     U = decomposer.components_
-    # V = U
     V = scaler.inverse_transform(U)
 
     #
-    # Fit KDE and sample FIXME: Fix sampling to limits using Numpy hack
+    # Fit KDE and sample
+    # TODO: Cap samples after inverse transforming
     #
     kde = analysis.fit_kde(Y_2d)
     num_samples = 10

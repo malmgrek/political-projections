@@ -83,7 +83,7 @@ def score_density_grid(kde: KernelDensity, Y: np.ndarray, num=100):
     return (x, y, density, xlim, ylim)
 
 
-def impute(X, *args, **kwargs):
+def impute_missing(X, *args, **kwargs):
     """Impute missing values using Sklearn iterative imputer
 
     """

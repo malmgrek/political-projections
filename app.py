@@ -49,14 +49,12 @@ def checklist_to_bool(x):
 
 def IntervalScaler(features):
     scales = ches2019.features_bounds
-    return analysis.IntervalScaler([
-        scales[feature] for feature in features
-    ])
+    return analysis.IntervalScaler([scales[f] for f in features])
 
 
 def reorder_features(X, features, corrcov):
     #
-    # TODO/FIXME: This is an ugly workaround
+    # TODO/FIXME/HACK: This is an ugly workaround
     # for ordering the features as in the dendrogram
     #
     C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
@@ -66,7 +64,7 @@ def reorder_features(X, features, corrcov):
         labels=features,
         linkagefun=hierarchy.ward
     )
-    new_features = fig["layout"]["xaxis"]["ticktext"]
+    new_features = list(fig["layout"]["xaxis"]["ticktext"])
     x = pd.DataFrame(X, columns=features)
     x = x[new_features]
     return (x.values, new_features)
@@ -89,26 +87,37 @@ def Dataset(meanvar=None, impute=None, corrcov=None):
     training_data = pd.read_json(get_training_data(), orient="split")
 
     # Optionally impute
-    X = (
-        analysis.impute(training_data.values, max_iter=21) if impute_bool
+    X_train = (
+        analysis.impute_missing(training_data.values, max_iter=21) if impute_bool
         else training_data.dropna().values
     )
-    features = training_data.columns
+    features = list(training_data.columns)
 
     #
     # NOTE: We first reorder features with hierarchical clustering analysis
     # and then define the scaler. The former should be more or less independent
-    # of scaling. However, it might make sense to try scaling before and after
-    # reordering.
+    # of scaling. It seems to make sense to scale before and after reordering.
     #
-    (X, features) = reorder_features(X, features, corrcov)
-    scaler = (
-        analysis.StandardScaler().fit(X) if meanvar_bool else
-        IntervalScaler(features)
-    )
-    X = scaler.transform(X)
 
-    return (X, features, scaler)
+    def create_scaler(_X, _features):
+        return (
+            analysis.StandardScaler().fit(_X) if meanvar_bool else
+            IntervalScaler(_features)
+        )
+
+    find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
+
+    # Scale once before re-ordering
+    X = create_scaler(X_train, features).transform(X_train)
+    # Re-order features
+    (X_reord, features_reord) = reorder_features(X, features, corrcov)
+    X_train_reord = X_train[:, find_permutation(features, features_reord)]
+    # Create new scaler for further use using the re-ordered features set
+    scaler = create_scaler(X_train_reord, features_reord)
+    # Scale training data
+    X = scaler.transform(X_train_reord)
+
+    return (X, features_reord, scaler)
 
 
 app.layout = html.Div([
@@ -305,7 +314,7 @@ def update_corr_heatmap(method, meanvar, impute, corrcov):
         "hovermode": "closest",
         "template": "plotly_white",
         "title": (
-            "<b>Covariance (or correlation plot) <br>"
+            "<b>Covariance (or correlation plot)</b> <br>"
             "Features re-ordered based on hierarchical clustering"
         )
     })

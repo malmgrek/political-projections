@@ -22,6 +22,9 @@ class IntervalScaler():
         self.a = a
         self.b = b
 
+    def fit(self, X):
+        return self
+
     def transform(self, X: np.ndarray):
         return 2 * (X - 0.5 * (self.a + self.b)) / (self.b - self.a)
 

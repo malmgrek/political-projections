@@ -2,10 +2,7 @@
 
 TODO:
 - CB: NaN filtering parameters
-- Map samples to the integer grid
-- Plot principal values
 - Train/test split validation
-
 
 """
 
@@ -130,56 +127,74 @@ app.layout = html.Div([
     ),
     html.Div(
         children=[
-            dcc.Dropdown(
-                id="dropdown-method",
-                options=[
-                    {"label": "Principal component analysis", "value": "pca"},
-                    {"label": "Independent component analysis", "value": "ica"},
-                    {"label": "Rotated factiorial analysis", "value": "fa"}
+            html.Div(
+                children=[
+                    dcc.Dropdown(
+                        id="dropdown-method",
+                        options=[
+                            {"label": "Principal component analysis", "value": "pca"},
+                            {"label": "Independent component analysis", "value": "ica"},
+                            {"label": "Rotated factiorial analysis", "value": "fa"}
+                        ],
+                        value="pca",
+                        style={"margin-top": "2em", "width": "20em"}
+                    ),
+                    dcc.Dropdown(
+                        id="dropdown-corrcov",
+                        options=[
+                            {"label": "Covariance in heatmap", "value": "cov"},
+                            {"label": "Spearman rank in heatmap", "value": "corr"},
+                        ],
+                        value="cov",
+                        style={"margin-top": "1em", "width": "20em"}
+                    ),
+                    dcc.Input(
+                        id="input-components",
+                        type="number",
+                        placeholder="Number of components visualized",
+                        min=1,
+                        max=1000,
+                        value=3,
+                        style={"margin-top": "1em", "width": "20em"}
+                    )
                 ],
-                value="pca",
-                style={"margin-top": "2em", "width": "20em"}
+                style={"float": "left"}
             ),
-            dcc.Dropdown(
-                id="dropdown-corrcov",
-                options=[
-                    {"label": "Covariance in heatmap", "value": "cov"},
-                    {"label": "Spearman rank in heatmap", "value": "corr"},
+            html.Div(
+                children=[
+                    dcc.Checklist(
+                        id="checklist-meanvar",
+                        options=[
+                            {"label": "Map to zero mean and unit variance", "value": "v"},
+                        ],
+                        style={"margin-top": "2em", "width": "20em"}
+                    ),
+                    dcc.Checklist(
+                        id="checklist-impute",
+                        options=[
+                            {"label": "Impute NaNs (otherwise drop)", "value": "v"},
+                        ],
+                        style={"margin-top": "1em", "width": "20em"}
+                    ),
+                    dcc.Checklist(
+                        id="checklist-whiten",
+                        options=[
+                            {"label": "Whiten", "value": "v"},
+                        ],
+                        style={"margin-top": "1em", "width": "20em"}
+                    ),
+                    dcc.Checklist(
+                        id="checklist-norint",
+                        options=[
+                            {"label": "Don't round samples to Int grid", "value": "v"},
+                        ],
+                        style={"margin-top": "1em", "width": "20em"}
+                    ),
                 ],
-                value="cov",
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-            dcc.Input(
-                id="input-components",
-                type="number",
-                placeholder="Number of components visualized",
-                min=1,
-                max=1000,
-                value=3,
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-            dcc.Checklist(
-                id="checklist-meanvar",
-                options=[
-                    {"label": "Map to zero mean and unit variance", "value": "v"},
-                ],
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-            dcc.Checklist(
-                id="checklist-impute",
-                options=[
-                    {"label": "Impute NaNs (otherwise drop)", "value": "v"},
-                ],
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-            dcc.Checklist(
-                id="checklist-whiten",
-                options=[
-                    {"label": "Whiten", "value": "v"},
-                ],
-                style={"margin-top": "1em", "width": "20em"}
-            ),
-        ]
+                style={"float": "left", "margin-left": "2em"}
+            )
+        ],
+        style={"margin-bottom": "15em", "float": "top"}
     ),
     dcc.Loading(
         children=dcc.Graph(id="graph-training-heatmap"),
@@ -238,7 +253,7 @@ def update_corr_heatmap(method, meanvar, impute, corrcov):
         C,
         orientation="bottom",
         labels=features,
-        linkagefun=hierarchy.ward
+        linkagefun=hierarchy.ward,
     )
 
     for i in range(len(fig["data"])):
@@ -271,7 +286,7 @@ def update_corr_heatmap(method, meanvar, impute, corrcov):
             x=dendro_leaves,
             y=dendro_leaves,
             z=heat_data,
-            colorscale="Agsunset"
+            colorscale="Agsunset",
         )
     ]
 
@@ -288,7 +303,11 @@ def update_corr_heatmap(method, meanvar, impute, corrcov):
         "height": 800,
         "showlegend": False,
         "hovermode": "closest",
-        "template": "plotly_white"
+        "template": "plotly_white",
+        "title": (
+            "<b>Covariance (or correlation plot) <br>"
+            "Features re-ordered based on hierarchical clustering"
+        )
     })
     # Edit xaxis
     fig.update_layout(
@@ -330,13 +349,25 @@ def update_corr_heatmap(method, meanvar, impute, corrcov):
         Input("checklist-whiten", "value"),
         Input("dropdown-corrcov", "value"),
         Input("input-components", "value"),
+        Input("checklist-norint", "value"),
     ]
 )
-def update_components(method, meanvar, impute, whiten, corrcov, components):
+def update_components(
+        method,
+        meanvar,
+        impute,
+        whiten,
+        corrcov,
+        components,
+        norint
+):
 
     whiten_bool = checklist_to_bool(whiten)
+    norint_bool = checklist_to_bool(norint)
 
     (X, features, scaler) = Dataset(meanvar, impute, corrcov)
+
+    bounds = np.array([ches2019.features_bounds[f] for f in features])
 
     #
     # Form decomposition
@@ -347,7 +378,8 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
         decomposer = decomposition.FastICA(
             random_state=np.random.RandomState(42),
             whiten=whiten_bool,
-            max_iter=2000
+            max_iter=500,
+            tol=1e-3
         ).fit(X)
     if method == "fa":
         decomposer = decomposition.FactorAnalysis(rotation="varimax").fit(X)
@@ -378,10 +410,14 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
         X_samples = scaler.inverse_transform(
             decomposer.inverse_transform(Y_samples_full)
         )
+        X_samples = (
+            X_samples if norint_bool
+            else np.clip(np.rint(X_samples), *bounds.T)
+        )
 
     # TODO: Add one more row with principal components
     fig = make_subplots(
-        rows=4,
+        rows=5,
         cols=2,
         specs=[
             [
@@ -395,6 +431,10 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             [
                 {"rowspan": 1, "colspan": 1, "type": "surface"},
                 {"rowspan": 1, "colspan": 1}
+            ],
+            [
+                {"rowspan": 1, "colspan": 1},
+                {"rowspan": 1, "colspan": 1},
             ],
             [
                 {"rowspan": 1, "colspan": 2},
@@ -411,7 +451,15 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             "Probability density",
             "Samples in 2D",
         ] + (
-            ["Samples in original coordinates\n (up to a linear combo of remaining components)"] if method == "pca" else
+            [
+                "Principal values" if method == "pca" else "",
+                "Explained variance ratio" if method == "pca" else ""
+            ]
+        ) + (
+            [
+                "Samples in original coordinates\n"
+                " (up to a linear combo of remaining components)"
+            ] if method == "pca" else
             ["Samples in original coordinates"] if method == "ica" else
             ["Reverse transformation for factorial analysis not supported :("]
         )
@@ -420,7 +468,7 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
     #
     # Principal components
     #
-    colors = random.sample(px.colors.qualitative.Plotly, components)
+    colors = random.choices(px.colors.qualitative.Plotly, k=components)
     for (i, color) in enumerate(colors):
         fig.append_trace(
             go.Scatter(
@@ -471,10 +519,9 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             rotate = lambda x: np.dot(U, x)
             translate = lambda x, n: x - np.dot(X.mean(axis=0), n) * n
             n_dims = len(features)
-            bounds = np.array([ches2019.features_bounds[f] for f in features])
-            bounds = scaler.transform(bounds.T).T
+            bounds_scaled = scaler.transform(bounds.T).T
 
-            for (i, (a, b)) in enumerate(bounds):
+            for (i, (a, b)) in enumerate(bounds_scaled):
 
                 for (c, color) in zip((a, b), ("blue", "red")):
 
@@ -509,6 +556,7 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
                     ylim = widen(min(Y_2d[:, 1]), max(Y_2d[:, 1]))
                     fig.update_xaxes(range=xlim, row=3, col=2)
                     fig.update_yaxes(range=ylim, row=3, col=2)
+
             return
 
         # ===================
@@ -545,7 +593,7 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
         3, 2
     )
 
-    colors = random.sample(px.colors.qualitative.Plotly, num_samples)
+    colors = random.choices(px.colors.qualitative.Plotly, k=num_samples)
     for (i, (Y_sample, color)) in enumerate(zip(Y_samples, colors)):
         fig.append_trace(
             go.Scatter(
@@ -558,33 +606,58 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             3, 2
         )
 
+    #
+    # Principal values
+    #
+    if method == "pca":
+        fig.append_trace(
+            go.Scatter(
+                y=decomposer.singular_values_,
+                mode="lines+markers",
+                line={"color": "black", "width": 1.0},
+                # marker={"style": "o"}
+            ),
+            4, 1
+        )
+        fig.append_trace(
+            go.Scatter(
+                y=decomposer.explained_variance_ratio_.cumsum(),
+                mode="lines+markers",
+                line={"color": "black", "width": 1.0},
+                # marker={"style": "o"}
+            ),
+            4, 2
+        )
+
+
 
 
     #
-    # Reverse transformed principal components
+    # Reverse transformed samples
     #
     if method in ["pca", "ica"]:
-        for (X_sample, color) in zip(X_samples, colors):
+        for (i, (X_sample, color)) in enumerate(zip(X_samples, colors)):
             fig.append_trace(
                 go.Scatter(
                     x=features,
                     y=X_sample,
                     showlegend=False,
-                    line={"color": color}
+                    line={"color": color},
+                    name="Sample {}".format(i)
                 ),
-                4, 1
+                5, 1
             )
     # NOTE: Reverse transform not supported for FactorialAnalysis
     if method == "fa":
         fig.append_trace(
             go.Scatter(),
-            4, 1
+            5, 1
         )
 
     fig.update_layout(
         autosize=False,
         width=1000,
-        height=1600,
+        height=2000,
         template="plotly_white"
     )
 

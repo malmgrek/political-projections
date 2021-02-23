@@ -16,7 +16,7 @@ from dimred.datasets import ches2019
 def test_run_ches2019():
 
     x = ches2019.download()
-    assert set(ches2019.feature_scales).issubset(x.columns)
+    assert set(ches2019.features_bounds).issubset(x.columns)
 
     (X, features) = ches2019.prepare(
         ches2019.cleanup(x, nan_floor_row=0, nan_floor_col=0)

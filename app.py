@@ -51,7 +51,7 @@ def checklist_to_bool(x):
 
 
 def IntervalScaler(features):
-    scales = ches2019.feature_scales
+    scales = ches2019.features_bounds
     return analysis.IntervalScaler([
         scales[feature] for feature in features
     ])
@@ -379,6 +379,7 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             decomposer.inverse_transform(Y_samples_full)
         )
 
+    # TODO: Add one more row with principal components
     fig = make_subplots(
         rows=4,
         cols=2,
@@ -465,61 +466,54 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
     #
     if method == "pca":
 
-        rotate = lambda x: np.dot(U, x)
-        translate = lambda x, n: x - np.dot(X.mean(axis=0), n) * n
-        n_dims = len(features)
+        def add_projected_lines():
 
-        for (i, feature) in enumerate(features):
+            rotate = lambda x: np.dot(U, x)
+            translate = lambda x, n: x - np.dot(X.mean(axis=0), n) * n
+            n_dims = len(features)
+            bounds = np.array([ches2019.features_bounds[f] for f in features])
+            bounds = scaler.transform(bounds.T).T
 
-            (a, b) = ches2019.feature_scales[feature]
-            # a = scaler.transform(a)
-            # b = scaler.transform(b)
+            for (i, (a, b)) in enumerate(bounds):
 
-            #
-            # Left endpoint
-            #
-            # a_vec doesn't translate!
-            n_vec = (np.arange(n_dims) == i) * -1
-            a_vec = (np.arange(n_dims) == i) * -1
-            a_vec = rotate(translate(a_vec, n_vec))
-            n_vec = rotate(n_vec)
-            (slope, intercept) = analysis.intersect_plane_xy(n_vec, a_vec)
+                for (c, color) in zip((a, b), ("blue", "red")):
 
-            fig.append_trace(
-                go.Scatter(
-                    x=np.array([-10, 10]),
-                    y=slope * np.array([-10, 10]) + intercept,
-                    line=dict(color="blue", width=0.5),
-                    showlegend=False
-                ),
-                3, 2
-            )
-            fig.update_xaxes(range=[-5, 5], row=3, col=2)
-            fig.update_yaxes(range=[-5, 5], row=3, col=2)
-            #
-            # Right endpoint
-            #
-            n_vec = (np.arange(n_dims) == i) * 1
-            a_vec = (np.arange(n_dims) == i) * 1
-            a_vec = rotate(translate(a_vec, n_vec))
-            n_vec = rotate(n_vec)
-            (slope, intercept) = analysis.intersect_plane_xy(n_vec, a_vec)
+                    n_vec = (np.arange(n_dims) == i) * c
+                    a_vec = n_vec
 
-            fig.append_trace(
-                go.Scatter(
-                    x=np.array([-10, 10]),
-                    y=slope * np.array([-10, 10]) + intercept,
-                    line=dict(color="red", width=0.5),
-                    showlegend=False
-                ),
-                3, 2
-            )
+                    #
+                    # PCA transformation first shifs to zero mean and then rotates.
+                    # For plane's vector geometry it means that the NORMAL VECTOR is
+                    # just rotated and the OFFSET VECTOR is
+                    #
+                    # (1) translated in the plane normal direction
+                    # (2) rotated by the rotation
+                    #
+                    a_vec = rotate(translate(a_vec, n_vec))
+                    n_vec = rotate(n_vec)
+                    (slope, intercept) = analysis.intersect_plane_xy(n_vec, a_vec)
+                    x = np.array([-100, 100])
+                    y = slope * x + intercept
 
-        # scale transform intervals
-        # form cube vertices
-        # rotate/translate cube vertices to PCA coordinates
-        # find intersection points with the "xy"-plane
-        # draw polygon
+                    fig.append_trace(
+                        go.Scatter(
+                            x=x,
+                            y=y,
+                            line=dict(color=color, width=0.5),
+                            showlegend=False
+                        ),
+                        3, 2
+                    )
+                    widen = lambda x, y: [x - 0.2 * abs(x - y), y + 0.2 * abs(x - y)]
+                    xlim = widen(min(Y_2d[:, 0]), max(Y_2d[:, 0]))
+                    ylim = widen(min(Y_2d[:, 1]), max(Y_2d[:, 1]))
+                    fig.update_xaxes(range=xlim, row=3, col=2)
+                    fig.update_yaxes(range=ylim, row=3, col=2)
+            return
+
+        # ===================
+        add_projected_lines()
+        # ===================
 
     #
     # 2d representation of density and projected points

@@ -23,7 +23,7 @@ def here(*args):
 # Manually picked subset of columns and their min/max limits, based on survey
 # documentation PDF
 #
-feature_scales = {
+features_bounds = {
     "position": [1.0, 7.0],
     "eu_salience": [0.0, 10.0],
     "eu_dissent": [0.0, 10.0],
@@ -113,7 +113,7 @@ def cleanup(
         x: pd.DataFrame,
         nan_floor_row=0.9,
         nan_floor_col=0.75,
-        columns=list(feature_scales)+["party_id"]
+        columns=list(features_bounds)+["party_id"]
 ):
     """Select subset of columns, fix data types, remove NaN
 

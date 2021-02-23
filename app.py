@@ -14,18 +14,17 @@ import random
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output
-from flask_caching import Cache
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
+from dash.dependencies import Input, Output
+from flask_caching import Cache
 from plotly.subplots import make_subplots
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
-from scipy.spatial.distance import pdist, squareform
-from sklearn import decomposition, preprocessing
+from sklearn import decomposition
 
 from dimred import analysis
 from dimred.datasets import ches2019
@@ -52,8 +51,9 @@ def checklist_to_bool(x):
 
 
 def IntervalScaler(features):
+    scales = ches2019.feature_scales
     return analysis.IntervalScaler([
-        v for (k, v) in ches2019.feature_scales.items() if k in features
+        scales[feature] for feature in features
     ])
 
 
@@ -77,8 +77,8 @@ def reorder_features(X, features, corrcov):
 
 @cache.memoize(timeout=TIMEOUT)
 def get_training_data():
-    x = ches2019.download()
-    # x = ches2019.load()
+    # x = ches2019.download()  # FIXME
+    x = ches2019.load()
     x = ches2019.cleanup(x, nan_floor_row=0.9, nan_floor_col=0.75)
     (X, features) = ches2019.prepare(x)
     return pd.DataFrame(X, columns=features).to_json(orient="split")
@@ -98,14 +98,19 @@ def Dataset(meanvar=None, impute=None, corrcov=None):
     )
     features = training_data.columns
 
-    scaler = (
-        analysis.StandardScaler().fit(X) if meanvar_bool else
-        IntervalScaler(features)
-    )
+    def get_scaler(X_, features_):
+        return (
+            analysis.StandardScaler().fit(X_) if meanvar_bool else
+            IntervalScaler(features_)
+        )
 
-    # Scale
-    X = scaler.transform(X)
+    # scaler = get_scaler(X, features)
+
+    # # Scale FIXME: Scaling not working
+    # X = scaler.transform(X)
     (X, features) = reorder_features(X, features, corrcov)
+    scaler = get_scaler(X, features)
+    X = scaler.transform(X)
 
     return (X, features, scaler)
 
@@ -334,7 +339,9 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
 
     (X, features, scaler) = Dataset(meanvar, impute, corrcov)
 
+    #
     # Form decomposition
+    #
     if method == "pca":
         decomposer = decomposition.PCA(whiten=whiten_bool).fit(X)
     if method == "ica":
@@ -351,14 +358,19 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
     # V = U
     V = scaler.inverse_transform(U)
 
+    #
     # Fit KDE and sample FIXME: Fix sampling to limits using Numpy hack
+    #
     kde = analysis.fit_kde(Y_2d)
     num_samples = 10
     Y_samples = kde.sample(num_samples)
     (x, y, density, xlim, ylim) = analysis.score_density_grid(
         kde=kde, Y=Y_2d, num=100
     )
+
+    #
     # Inverse transform not supported for FA :(
+    #
     Y_samples_full = np.hstack((
         Y_samples,
         np.zeros((num_samples, len(features) - 2))
@@ -367,7 +379,6 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
         X_samples = scaler.inverse_transform(
             decomposer.inverse_transform(Y_samples_full)
         )
-        # X_samples = decomposer.inverse_transform(Y_samples_full)
 
     fig = make_subplots(
         rows=4,
@@ -400,11 +411,15 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             "Probability density",
             "Samples in 2D",
         ] + (
-            ["Samples in original coordinates"] if method in ["pca", "ica"] else
+            ["Samples in original coordinates\n (up to a linear combo of remaining components)"] if method == "pca" else
+            ["Samples in original coordinates"] if method == "ica" else
             ["Reverse transformation for factorial analysis not supported :("]
         )
     )
 
+    #
+    # Principal components
+    #
     colors = random.sample(px.colors.qualitative.Plotly, components)
     for (i, color) in enumerate(colors):
         fig.append_trace(
@@ -416,6 +431,10 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             ),
             1, 1
         )
+
+    #
+    # Principal compoments in scalet coordinates
+    #
     for (i, color) in enumerate(colors):
         fig.append_trace(
             go.Scatter(
@@ -427,6 +446,9 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             2, 1
         )
 
+    #
+    # 3d surface plot of estimated density
+    #
     fig.append_trace(
         go.Surface(
             x=x,
@@ -437,6 +459,72 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
         ),
         3, 1
     )
+
+
+    #
+    # Projected limit bounds
+    #
+    if method == "pca":
+
+        rotate = lambda x: np.dot(U, x)
+        translate = lambda x, n: x - np.dot(X.mean(axis=0), n) * n
+        n_dims = len(features)
+
+        for (i, feature) in enumerate(features):
+
+            (a, b) = ches2019.feature_scales[feature]
+            # a = scaler.transform(a)
+            # b = scaler.transform(b)
+
+            #
+            # Left endpoint
+            #
+            # a_vec doesn't translate!
+            n_vec = (np.arange(n_dims) == i) * -1
+            a_vec = (np.arange(n_dims) == i) * -1
+            a_vec = rotate(translate(a_vec, n_vec))
+            n_vec = rotate(n_vec)
+            (slope, intercept) = analysis.intersect_plane_xy(n_vec, a_vec)
+
+            fig.append_trace(
+                go.Scatter(
+                    x=np.array([-10, 10]),
+                    y=slope * np.array([-10, 10]) + intercept,
+                    line=dict(color="blue", width=0.5),
+                    showlegend=False
+                ),
+                3, 2
+            )
+            fig.update_xaxes(range=[-5, 5], row=3, col=2)
+            fig.update_yaxes(range=[-5, 5], row=3, col=2)
+            #
+            # Right endpoint
+            #
+            n_vec = (np.arange(n_dims) == i) * 1
+            a_vec = (np.arange(n_dims) == i) * 1
+            a_vec = rotate(translate(a_vec, n_vec))
+            n_vec = rotate(n_vec)
+            (slope, intercept) = analysis.intersect_plane_xy(n_vec, a_vec)
+
+            fig.append_trace(
+                go.Scatter(
+                    x=np.array([-10, 10]),
+                    y=slope * np.array([-10, 10]) + intercept,
+                    line=dict(color="red", width=0.5),
+                    showlegend=False
+                ),
+                3, 2
+            )
+
+        # scale transform intervals
+        # form cube vertices
+        # rotate/translate cube vertices to PCA coordinates
+        # find intersection points with the "xy"-plane
+        # draw polygon
+
+    #
+    # 2d representation of density and projected points
+    #
     fig.append_trace(
         go.Scatter(
             x=Y_2d[:, 0],
@@ -445,7 +533,7 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
             marker={
                 "color": "black",
                 "size": 12,
-                "opacity": 0.5
+                "opacity": 0.3
             },
             name="Projected parties"
         ),
@@ -463,27 +551,37 @@ def update_components(method, meanvar, impute, whiten, corrcov, components):
         ),
         3, 2
     )
-    for (i, Y_sample) in enumerate(Y_samples):
+
+    colors = random.sample(px.colors.qualitative.Plotly, num_samples)
+    for (i, (Y_sample, color)) in enumerate(zip(Y_samples, colors)):
         fig.append_trace(
             go.Scatter(
                 x=[Y_sample[0]],
                 y=[Y_sample[1]],
                 mode="markers",
-                marker={"size": 18},
+                marker={"size": 18, "color": color},
                 name="Sample {}".format(i)
             ),
             3, 2
         )
+
+
+
+    #
+    # Reverse transformed principal components
+    #
     if method in ["pca", "ica"]:
-        for X_sample in X_samples:
+        for (X_sample, color) in zip(X_samples, colors):
             fig.append_trace(
                 go.Scatter(
                     x=features,
                     y=X_sample,
-                    showlegend=False
+                    showlegend=False,
+                    line={"color": color}
                 ),
                 4, 1
             )
+    # NOTE: Reverse transform not supported for FactorialAnalysis
     if method == "fa":
         fig.append_trace(
             go.Scatter(),

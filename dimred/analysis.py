@@ -1,7 +1,6 @@
 """Data analysis functionality"""
 
 from functools import reduce
-import itertools
 
 import numpy as np
 from sklearn.experimental import enable_iterative_imputer
@@ -88,52 +87,52 @@ def impute(X, *args, **kwargs):
     imputer = IterativeImputer(*args, **kwargs).fit(X)
     return imputer.transform(X)
 
+#
+# Intersection of N dimensional plane and xy plane
+# ================================================
+#
+# P: n . (v - a) = 0
+# xy: (0, 0, 1, 1, ..., 1) . v = 0
+#
+# The intersection is a straight line in xy plane, i.e.
+# it is of form y = k * x + b
+#
+# x = 0: b * e2
+# x = -b / k: - b * e1 / k
+#
+# => n . (b * e2 - a) = 0
+# => b * n . e2 - n . a = 0
+#
+#    ----------------------
+# => b = (n . a) / (n . e2)
+#    ----------------------
+#
+# => n . (-b/k * e1 - a) = 0
+# => -b/k = (n . a) / (n . e1)
+# => k = -b * (n . e1) / (n . a)
+#
+#    -------------------------
+# => k = - (n . e1) / (n . e2)
+#    -------------------------
+#
 
-def cuboid_edges(vtxs):
-    """Edges of an N dimensional cuboid as vertex pairs
+
+def intersect_plane_xy(n_vec, a_vec):
+    """Slope and intercept of a line
+
+    The line forms the intersection between a hyperplane
+    and the xy plane.
+
+    Equation of the hyperplane is
+
+        n_vec . x = a_vec . x
 
     """
-    n_dims = len(vtxs[0])
-    vtxs = list(map(tuple, vtxs))  # Enable hashing
-    pairs = reduce(
-        # Reduce to the pair level
-        lambda cum, this: list(cum) + list(this),
-        (
-            # Form pairs with the base vertex
-            # and sort by distance
-            itertools.product(
-                (v,),
-                sorted(
-                    vtxs,
-                    key=lambda u: np.linalg.norm(
-                        np.subtract(u, v)
-                    )
-                )[1:n_dims+1]  # Take three nearest
-            ) for v in vtxs
-        )
-    )
-    unique_pairs = reduce(
-        lambda cum, this: cum if (
-            this in cum or this[::-1] in cum
-        ) else cum + [this],
-        pairs,
-        []
-    )
-    return unique_pairs
-
-
-def intersect_plane2_cuboid(normal, a, vtxs):
-    """Polygon resulting from intersection a N-cube and 2-plane
-
-    """
-    vtx_pairs = cuboid_edges(vtxs)
-    points = []
-    for (vi, vj) in vtx_pairs:
-        t = (
-            np.dot(np.subtract(vj, vi), normal) /
-            np.float64(np.dot(np.subtract(a, vi), normal))
-        )
-        if t >= 1:
-            p = np.add(vi, np.subtract(vj, vi) / t)
-            points = points + [p]
-    return np.array(points)
+    n_dims = len(n_vec)
+    e0 = np.zeros(n_dims)
+    e0[0] = 1.0
+    e1 = np.zeros(n_dims)
+    e1[1] = 1.0
+    slope = -np.dot(n_vec, e0) / np.dot(n_vec, e1)
+    intercept = np.dot(n_vec, a_vec) / np.dot(n_vec, e1)
+    return (slope, intercept)

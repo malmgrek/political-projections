@@ -1,7 +1,5 @@
 """Unit tests for the Analysis module"""
 
-import itertools
-
 import numpy as np
 from dimred import analysis
 from numpy.testing import assert_almost_equal, assert_array_equal
@@ -61,22 +59,4 @@ def test_interval_scaler():
     x_new = scaler.transform(x)
     assert_almost_equal(x_new, np.array([1, 1, 1, 1, 1]))
 
-    return
-
-
-def test_intersect_plane2_cuboid():
-    # Trivial case
-    normal = np.array([0, 0, 1])
-    a = np.array([0, 0, 0.5])
-    vtxs = list(itertools.product([0, 1], [0, 1], [0, 1]))
-    points = analysis.intersect_plane2_cuboid(normal, a, vtxs)
-    assert_array_equal(
-        points,
-        np.array([
-            [0, 0, 0.5],
-            [0, 1, 0.5],
-            [1, 0, 0.5],
-            [1, 1, 0.5]
-        ])
-    )
     return

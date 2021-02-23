@@ -84,3 +84,30 @@ def impute(X, *args, **kwargs):
     """
     imputer = IterativeImputer(*args, **kwargs).fit(X)
     return imputer.transform(X)
+
+
+def project_to_axes2d(x, proj, shift=0):
+    """Calculates normalized projected vector and it's orthogonal vector
+
+    """
+    y = np.dot(proj, x + shift)
+    y_ = np.dot([[0, 1], [-1, 0]], y)
+    y_ = y_ / np.linalg.norm(y_)
+    import pdb; pdb.set_trace()
+    return (y, y_)
+
+
+def bounds_to_axes2d(
+        interval=[-1, 1],
+        dim=0,
+        n_dims=3,
+        transform=lambda t: t,
+        **kwargs
+):
+    e = (np.arange(n_dims) == dim) * 1
+    e0 = transform(interval[0]) * e
+    e1 = transform(interval[1]) * e
+    return (
+        project_to_axes2d(e0, **kwargs),
+        project_to_axes2d(e1, **kwargs)
+    )

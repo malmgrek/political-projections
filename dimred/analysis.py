@@ -9,45 +9,48 @@ from sklearn.neighbors import KernelDensity
 from sklearn.impute import IterativeImputer
 
 
-class IntervalScaler():
+class AffineScaler():
+
+    def __init__(self, w=1, bias=0):
+        self.w = w
+        self.bias = bias
+
+    def transform(self, X):
+        return self.w * X + self.bias
+
+    def inverse_transform(self, Y):
+        return (Y - self.bias) / self.w
+
+    def to_dict(self):
+        return {"w": self.w.tolist(), "bias": self.bias.tolist()}
+
+    @classmethod
+    def from_dict(cls, x: dict):
+        w = np.array(x["w"])
+        bias = np.array(x["bias"])
+        return AffineScaler(w=w, bias=bias)
+
+
+def IntervalScaler(a, b):
     """Affine transform from a given interval to [-1, 1]
 
     forward: (x - 0.5 * (a + b)) / (b - a)
     inverse: y * (b - a) + 0.5 * (b - a)
 
     """
-
-    def __init__(self, intervals: list, whiten=False):
-        (a, b) = np.array(intervals).T
-        self.a = a
-        self.b = b
-
-    def fit(self, X):
-        return self
-
-    def transform(self, X: np.ndarray):
-        return 2 * (X - 0.5 * (self.a + self.b)) / (self.b - self.a)
-
-    def inverse_transform(self, Y: np.ndarray):
-        return 0.5 * Y * (self.b - self.a) + 0.5 * (self.b + self.a)
+    a = np.array(a)
+    b = np.array(b)
+    w = 2 / (b - a)
+    bias = (a + b) / (a - b)
+    return AffineScaler(w=w, bias=bias)
 
 
-class StandardScaler():
-
-    def __init__(self, mean=0, std=1):
-        self.mean = mean
-        self.std = std
-
-    def fit(self, X):
-        mean = X.mean(axis=0)
-        std = X.std(axis=0)
-        return StandardScaler(mean=mean, std=std)
-
-    def transform(self, X):
-        return (X - self.mean) / self.std
-
-    def inverse_transform(self, Y):
-        return Y * self.std + self.mean
+def UnitScaler(X):
+    u = X.mean(axis=0)
+    s = X.std(axis=0)
+    w = 1 / s
+    bias = -u / s
+    return AffineScaler(w=w, bias=bias)
 
 
 def fit_kde(Y: np.ndarray):
@@ -89,6 +92,7 @@ def impute_missing(X, *args, **kwargs):
     """
     imputer = IterativeImputer(*args, **kwargs).fit(X)
     return imputer.transform(X)
+
 
 #
 # Intersection of N dimensional plane and xy plane

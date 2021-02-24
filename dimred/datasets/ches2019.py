@@ -99,7 +99,7 @@ def update(filepath=here("cache", "dump.csv")):
     x = download()
     logging.info("Saved to file {}".format(filepath))
     x.to_csv(filepath)
-    return
+    return x
 
 
 def load(filepath=here("cache", "dump.csv")):

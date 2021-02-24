@@ -6,6 +6,7 @@ TODO:
 
 """
 
+import json
 import logging
 import random
 
@@ -18,7 +19,7 @@ import plotly.figure_factory as ff
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
 from plotly.subplots import make_subplots
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError, HTTPError
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
 from sklearn import decomposition
@@ -38,9 +39,13 @@ def checklist_to_bool(x):
     return x is not None and "v" in x
 
 
-def IntervalScaler(features):
-    scales = ches2019.features_bounds
-    return analysis.IntervalScaler([scales[f] for f in features])
+def create_scaler(X, features, normalize_bool):
+    bounds = ches2019.features_bounds
+    (a, b) = np.array([scales[f] for f in features]).T
+    return (
+        analysis.UnitScaler(X) if normalize_bool else
+        analysis.IntervalScaler(a=a, b=b)
+    )
 
 
 def shuffle_features(X, features, corrcov):
@@ -60,63 +65,12 @@ def shuffle_features(X, features, corrcov):
     return new_features
 
 
-def Dataset(meanvar, impute, corrcov, offline):
-
-    meanvar_bool = checklist_to_bool(meanvar)
-    impute_bool = checklist_to_bool(impute)
-    offline_bool = checklist_to_bool(offline)
-
-    try:
-        raw_data = ches2019.load() if offline_bool else ches2019.update(),
-    except ConnectionError:
-        raw_data = ches2019.load()
-        logging.warning("Connection to API unavailable, using cached data.")
-    else:
-        raise
-
-    training_data = ches2019.prepare(
-        ches2019.cleanup(
-            raw_data,
-            nan_floor_row=0.9,
-            nan_floor_col=0.75
-        )
-    )
-
-    # Optionally impute
-    X = (
-        analysis.impute_missing(X, max_iter=21) if impute_bool
-        else training_data.dropna().values
-    )
-    features = list(training_data.columns)
-
-    #
-    # NOTE: We first reorder features with hierarchical clustering analysis
-    # and then define the scaler. The former should be more or less independent
-    # of scaling. It seems to make sense to scale before and after reordering.
-    #
-
-    def create_scaler(_X, _features):
-        return (
-            analysis.StandardScaler().fit(_X) if meanvar_bool else
-            IntervalScaler(_features)
-        )
-
-    # So that xs -> ys
-    find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
-
-    # Re-order features
-    shuffled_features = shuffle_features(
-        create_scaler(X, features).transform(X),
-        features,
-        corrcov
-    )
-    X = X[:, find_permutation(features, shuffled_features)]
-    # Create new scaler for further use using the re-ordered features set
-    scaler = create_scaler(X, shuffled_features)
-    # Scale training data
-    X = scaler.transform(X)
-
-    return (X, shuffled_features, scaler)
+def deserialize(dataset):
+    dataset = json.loads(dataset)
+    X = np.asarray(dataset["X"])
+    features = dataset["features"]
+    scaler = analysis.AffineScaler.from_dict(dataset["scaler"])
+    return (X, features, scaler)
 
 
 app.layout = html.Div([
@@ -178,7 +132,7 @@ app.layout = html.Div([
                         style={"margin-top": "2em", "width": "20em"}
                     ),
                     dcc.Checklist(
-                        id="checklist-meanvar",
+                        id="checklist-normalize",
                         options=[
                             {"label": "Map to zero mean and unit variance", "value": "v"},
                         ],
@@ -219,23 +173,94 @@ app.layout = html.Div([
     ),
     dcc.Loading(
         children=dcc.Graph(id="graph-components"),
-    )
+    ),
+
+    # == Hidden div for dataset ============================
+    html.Div(id="cache", style={"display": "none"})
+    # ======================================================
+
 ], style={"width": "800px", "margin": "0 auto"})
+
+
+@app.callback(
+    Output("cache", "children"),
+    [
+        Input("checklist-normalize", "value"),
+        Input("checklist-impute", "value"),
+        Input("dropdown-corrcov", "value"),
+        Input("checklist-offline", "value")
+    ]
+)
+def Dataset(normalize, impute, corrcov, offline):
+
+    normalize_bool = checklist_to_bool(normalize)
+    impute_bool = checklist_to_bool(impute)
+    offline_bool = checklist_to_bool(offline)
+
+    try:
+        raw_data = ches2019.load() if offline_bool else ches2019.update()
+    except Exception:
+        raw_data = ches2019.load()
+        logging.warning("Something went wrong with downloading data, using cache.")
+
+    training_data = ches2019.prepare(
+        ches2019.cleanup(
+            raw_data,
+            nan_floor_row=0.9,
+            nan_floor_col=0.75
+        )
+    )
+
+    # Optionally impute
+    X = (
+        analysis.impute_missing(X, max_iter=21) if impute_bool
+        else training_data.dropna().values
+    )
+    features = list(training_data.columns)
+
+    #
+    # NOTE: We first reorder features with hierarchical clustering analysis
+    # and then define the scaler. The former should be more or less independent
+    # of scaling. It seems to make sense to scale before and after reordering.
+    #
+
+
+    # So that xs -> ys
+    find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
+
+    # Re-order features
+    shuffled_features = shuffle_features(
+        create_scaler(X, features, normalize_bool).transform(X),
+        features,
+        corrcov
+    )
+    X = X[:, find_permutation(features, shuffled_features)]
+    # Create new scaler for further use using the re-ordered features set
+    scaler = create_scaler(X, shuffled_features, normalize_bool)
+    # Scale training data
+    X = scaler.transform(X)
+
+    return json.dumps({
+        "features": shuffled_features,
+        "X": X.tolist(),
+        "scaler": scaler.to_dict()
+    })
 
 
 @app.callback(
     Output("graph-training-heatmap", "figure"),
     [
+        Input("cache", "children"),
         Input("dropdown-method", "value"),
-        Input("checklist-meanvar", "value"),
+        Input("checklist-normalize", "value"),
         Input("checklist-impute", "value"),
         Input("dropdown-corrcov", "value"),
         Input("checklist-offline", "value"),
     ]
 )
-def update_training_heatmap(method, meanvar, impute, corrcov, offline):
+def update_training_heatmap(dataset, method, normalize, impute, corrcov, offline):
 
-    (X, features, scaler) = Dataset(meanvar, impute, corrcov, offline)
+    (X, features, scaler) = deserialize(dataset)
 
     # Plot dataset
     fig = px.imshow(
@@ -253,16 +278,18 @@ def update_training_heatmap(method, meanvar, impute, corrcov, offline):
 @app.callback(
     Output("graph-corr-heatmap", "figure"),
     [
+        Input("cache", "children"),
         Input("dropdown-method", "value"),
-        Input("checklist-meanvar", "value"),
+        Input("checklist-normalize", "value"),
         Input("checklist-impute", "value"),
         Input("dropdown-corrcov", "value"),
         Input("checklist-offline", "value"),
     ]
 )
-def update_corr_heatmap(method, meanvar, impute, corrcov, offline):
+def update_corr_heatmap(dataset, method, normalize, impute, corrcov, offline):
 
-    (X, features, scaler) = Dataset(meanvar, impute, corrcov, offline)
+    (X, features, scaler) = deserialize(dataset)
+
     C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
     # corr_linkage = hierarchy.ward(corr)
 
@@ -360,8 +387,9 @@ def update_corr_heatmap(method, meanvar, impute, corrcov, offline):
 @app.callback(
     Output("graph-components", "figure"),
     [
+        Input("cache", "children"),
         Input("dropdown-method", "value"),
-        Input("checklist-meanvar", "value"),
+        Input("checklist-normalize", "value"),
         Input("checklist-impute", "value"),
         Input("checklist-whiten", "value"),
         Input("dropdown-corrcov", "value"),
@@ -371,8 +399,9 @@ def update_corr_heatmap(method, meanvar, impute, corrcov, offline):
     ]
 )
 def update_components(
+        dataset,
         method,
-        meanvar,
+        normalize,
         impute,
         whiten,
         corrcov,
@@ -384,7 +413,7 @@ def update_components(
     whiten_bool = checklist_to_bool(whiten)
     norint_bool = checklist_to_bool(norint)
 
-    (X, features, scaler) = Dataset(meanvar, impute, corrcov, offline)
+    (X, features, scaler) = deserialize(dataset)
 
     bounds = np.array([ches2019.features_bounds[f] for f in features])
 

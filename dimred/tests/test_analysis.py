@@ -7,10 +7,10 @@ from numpy.testing import assert_almost_equal, assert_array_equal
 np.random.seed(42)
 
 
-def test_standard_scaler():
+def test_unit_scaler():
 
     X_orig = 100 * np.random.rand(14, 42)
-    scaler = analysis.StandardScaler().fit(X_orig)
+    scaler = analysis.UnitScaler(X_orig)
     X_new = scaler.transform(X_orig)
     assert_almost_equal(X_new.mean(axis=0), 0)
     assert_almost_equal(X_new.std(axis=0), 1)
@@ -20,6 +20,13 @@ def test_standard_scaler():
     # Check that one point transforms without errors
     x = 100 * np.random.rand(42)
     x_new = scaler.transform(x)
+
+    X = np.random.rand(66, 42)
+    X[13, 7] = np.NaN
+    scaler = analysis.UnitScaler(X)
+    dict_scaler = analysis.AffineScaler.from_dict(scaler.to_dict())
+    assert_almost_equal(scaler.w, dict_scaler.w)
+    assert_almost_equal(scaler.bias, dict_scaler.bias)
 
     return
 
@@ -33,13 +40,10 @@ def test_interval_scaler():
         [6, 3, 0, 4, -42],
         [4, 1, 1, 3, -41]
     ])
-    scaler = analysis.IntervalScaler([
-        [0,     8],
-        [0,     4],
-        [0,     5],
-        [1,     9],
-        [-45, -40]
-    ])
+    scaler = analysis.IntervalScaler(
+        a=[0, 0, 0, 1, -45],
+        b=[8, 4, 5, 9, -40]
+    )
     X_new = scaler.transform(X_orig)
     assert_almost_equal(
         np.array([
@@ -58,5 +62,13 @@ def test_interval_scaler():
     x = np.array([8, 4, 5, 9, -40])
     x_new = scaler.transform(x)
     assert_almost_equal(x_new, np.array([1, 1, 1, 1, 1]))
+
+    # Serializing DICT
+    a = np.array([1, np.pi, np.exp(1), np.NaN, np.inf])
+    b = np.array([-1, 666, 42, 0, np.NaN])
+    scaler = analysis.IntervalScaler(a=a, b=b)
+    dict_scaler = analysis.AffineScaler.from_dict(scaler.to_dict())
+    assert_almost_equal(dict_scaler.w, scaler.w)
+    assert_almost_equal(dict_scaler.bias, scaler.bias)
 
     return

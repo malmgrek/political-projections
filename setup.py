@@ -14,6 +14,6 @@ setup(
     ],
     extras_require={
         "test": ["pytest"],
-        "dash": ["dash", "flask_caching"]
+        "dash": ["dash"]
     },
 )

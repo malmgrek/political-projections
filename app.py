@@ -6,19 +6,19 @@ TODO:
 
 """
 
+import logging
 import random
 
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import numpy as np
-import pandas as pd
 import plotly.express as px
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
-from flask_caching import Cache
 from plotly.subplots import make_subplots
+from requests.exceptions import ConnectionError
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
 from sklearn import decomposition
@@ -29,15 +29,6 @@ from dimred.datasets import ches2019
 
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-cache = Cache(
-    app.server,
-    config={
-        "CACHE_TYPE": "filesystem",
-        "CACHE_DIR": "cache-directory",
-        # Keep only max 5 cache files
-        "CACHE_THRESHOLD": 5,
-    }
-)
 
 
 TIMEOUT = 10
@@ -69,25 +60,31 @@ def shuffle_features(X, features, corrcov):
     return new_features
 
 
-@cache.memoize(timeout=TIMEOUT)
-def get_training_data():
-    # x = ches2019.download()  # FIXME
-    x = ches2019.load()
-    x = ches2019.cleanup(x, nan_floor_row=0.9, nan_floor_col=0.75)
-    (X, features) = ches2019.prepare(x)
-    return pd.DataFrame(X, columns=features).to_json(orient="split")
-
-
-def Dataset(meanvar=None, impute=None, corrcov=None):
+def Dataset(meanvar, impute, corrcov, offline):
 
     meanvar_bool = checklist_to_bool(meanvar)
     impute_bool = checklist_to_bool(impute)
+    offline_bool = checklist_to_bool(offline)
 
-    training_data = pd.read_json(get_training_data(), orient="split")
+    try:
+        raw_data = ches2019.load() if offline_bool else ches2019.update(),
+    except ConnectionError:
+        raw_data = ches2019.load()
+        logging.warning("Connection to API unavailable, using cached data.")
+    else:
+        raise
+
+    training_data = ches2019.prepare(
+        ches2019.cleanup(
+            raw_data,
+            nan_floor_row=0.9,
+            nan_floor_col=0.75
+        )
+    )
 
     # Optionally impute
     X = (
-        analysis.impute_missing(training_data.values, max_iter=21) if impute_bool
+        analysis.impute_missing(X, max_iter=21) if impute_bool
         else training_data.dropna().values
     )
     features = list(training_data.columns)
@@ -174,32 +171,39 @@ app.layout = html.Div([
             html.Div(
                 children=[
                     dcc.Checklist(
+                        id="checklist-offline",
+                        options=[
+                            {"label": "Offline", "value": "v"},
+                        ],
+                        style={"margin-top": "2em", "width": "20em"}
+                    ),
+                    dcc.Checklist(
                         id="checklist-meanvar",
                         options=[
                             {"label": "Map to zero mean and unit variance", "value": "v"},
                         ],
-                        style={"margin-top": "2em", "width": "20em"}
+                        style={"margin-top": "0.5em", "width": "20em"}
                     ),
                     dcc.Checklist(
                         id="checklist-impute",
                         options=[
                             {"label": "Impute NaNs (otherwise drop)", "value": "v"},
                         ],
-                        style={"margin-top": "1em", "width": "20em"}
+                        style={"margin-top": "0.5em", "width": "20em"}
                     ),
                     dcc.Checklist(
                         id="checklist-whiten",
                         options=[
                             {"label": "Whiten", "value": "v"},
                         ],
-                        style={"margin-top": "1em", "width": "20em"}
+                        style={"margin-top": "0.5em", "width": "20em"}
                     ),
                     dcc.Checklist(
                         id="checklist-norint",
                         options=[
                             {"label": "Don't round samples to Int grid", "value": "v"},
                         ],
-                        style={"margin-top": "1em", "width": "20em"}
+                        style={"margin-top": "0.5em", "width": "20em"}
                     ),
                 ],
                 style={"float": "left", "margin-left": "2em"}
@@ -226,11 +230,12 @@ app.layout = html.Div([
         Input("checklist-meanvar", "value"),
         Input("checklist-impute", "value"),
         Input("dropdown-corrcov", "value"),
+        Input("checklist-offline", "value"),
     ]
 )
-def update_training_heatmap(method, meanvar, impute, corrcov):
+def update_training_heatmap(method, meanvar, impute, corrcov, offline):
 
-    (X, features, scaler) = Dataset(meanvar, impute, corrcov)
+    (X, features, scaler) = Dataset(meanvar, impute, corrcov, offline)
 
     # Plot dataset
     fig = px.imshow(
@@ -252,11 +257,12 @@ def update_training_heatmap(method, meanvar, impute, corrcov):
         Input("checklist-meanvar", "value"),
         Input("checklist-impute", "value"),
         Input("dropdown-corrcov", "value"),
+        Input("checklist-offline", "value"),
     ]
 )
-def update_corr_heatmap(method, meanvar, impute, corrcov):
+def update_corr_heatmap(method, meanvar, impute, corrcov, offline):
 
-    (X, features, scaler) = Dataset(meanvar, impute, corrcov)
+    (X, features, scaler) = Dataset(meanvar, impute, corrcov, offline)
     C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
     # corr_linkage = hierarchy.ward(corr)
 
@@ -361,6 +367,7 @@ def update_corr_heatmap(method, meanvar, impute, corrcov):
         Input("dropdown-corrcov", "value"),
         Input("input-components", "value"),
         Input("checklist-norint", "value"),
+        Input("checklist-offline", "value"),
     ]
 )
 def update_components(
@@ -370,13 +377,14 @@ def update_components(
         whiten,
         corrcov,
         components,
-        norint
+        norint,
+        offline
 ):
 
     whiten_bool = checklist_to_bool(whiten)
     norint_bool = checklist_to_bool(norint)
 
-    (X, features, scaler) = Dataset(meanvar, impute, corrcov)
+    (X, features, scaler) = Dataset(meanvar, impute, corrcov, offline)
 
     bounds = np.array([ches2019.features_bounds[f] for f in features])
 

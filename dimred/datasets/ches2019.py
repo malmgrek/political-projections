@@ -136,7 +136,4 @@ def prepare(
     """Group by parties and build weights for cells
 
     """
-    agg = x.groupby(x[groupby_feature]).median()
-    X = agg.values
-    features = agg.columns
-    return (X, features)
+    return x.groupby(x[groupby_feature]).median()

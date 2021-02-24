@@ -9,5 +9,4 @@ dependencies:
   - urllib3=1.25.10
   - pip:
     - dash
-    - flask_caching
     - scikit-learn==0.24.1

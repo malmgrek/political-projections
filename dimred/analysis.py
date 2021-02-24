@@ -3,6 +3,8 @@
 from functools import reduce
 
 import numpy as np
+from scipy.cluster import hierarchy
+from scipy.stats import spearmanr
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
@@ -92,6 +94,26 @@ def impute_missing(X, *args, **kwargs):
     """
     imputer = IterativeImputer(*args, **kwargs).fit(X)
     return imputer.transform(X)
+
+
+def order_features(X, features, corrcov):
+    """Order features that behave similarly
+
+    """
+    C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
+    R = hierarchy.dendrogram(
+        #
+        # NOTE: Gives the same result. See docs of ward.
+        #
+        # hierarchy.ward(distance.pdist(C)),
+        hierarchy.ward(C),
+        orientation="bottom",
+        labels=features,
+        no_plot=True,
+        color_threshold=None
+    )
+    ordered_features = R["ivl"]
+    return ordered_features
 
 
 #

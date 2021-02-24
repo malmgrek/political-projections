@@ -9,26 +9,23 @@ TODO:
 import argparse
 import json
 import logging
-import random
 
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.exceptions import PreventUpdate
 import numpy as np
 import plotly.express as px
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
+from dash.exceptions import PreventUpdate
 from plotly.subplots import make_subplots
-from requests.exceptions import ConnectionError, HTTPError
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
 from sklearn import decomposition
 
 from dimred import analysis, plot
 from dimred.datasets import ches2019
-
 
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
@@ -47,23 +44,6 @@ def create_scaler(X, features, normalize_bool):
         analysis.UnitScaler(X) if normalize_bool else
         analysis.IntervalScaler(a=a, b=b)
     )
-
-
-def shuffle_features(X, features, corrcov):
-    #
-    # TODO/FIXME/HACK: This is an ugly workaround
-    # for ordering the features as in the dendrogram.
-    # Learn how the SciPy back-end works and use that!
-    #
-    C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
-    fig = ff.create_dendrogram(
-        C,
-        orientation="bottom",
-        labels=features,
-        linkagefun=hierarchy.ward
-    )
-    new_features = list(fig["layout"]["xaxis"]["ticktext"])
-    return new_features
 
 
 def deserialize(dataset):
@@ -213,30 +193,24 @@ def create_app(raw_data):
         )
         features = list(training_data.columns)
 
-        #
-        # NOTE: We first reorder features with hierarchical clustering analysis
-        # and then define the scaler. The former should be more or less independent
-        # of scaling. It seems to make sense to scale before and after reordering.
-        #
-
-
         # So that xs -> ys
         find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
 
         # Re-order features
-        shuffled_features = shuffle_features(
+        ordered_features = analysis.order_features(
+            # Ordering works better with scaled data
             create_scaler(X, features, normalize_bool).transform(X),
             features,
             corrcov
         )
-        X = X[:, find_permutation(features, shuffled_features)]
+        X = X[:, find_permutation(features, ordered_features)]
         # Create new scaler for further use using the re-ordered features set
-        scaler = create_scaler(X, shuffled_features, normalize_bool)
+        scaler = create_scaler(X, ordered_features, normalize_bool)
         # Scale training data
         X = scaler.transform(X)
 
         return json.dumps({
-            "features": shuffled_features,
+            "features": ordered_features,
             "X": X.tolist(),
             "scaler": scaler.to_dict()
         })
@@ -263,7 +237,10 @@ def create_app(raw_data):
             height=800,
             width=800,
             color_continuous_scale="Agsunset",
-            title="Processed training data, shape: {}".format(X.shape)
+            title=(
+                "<b>Processed training data, shape: {}</b><br>".format(X.shape) +
+                "The features have been grouped with hierarchical clustering (see below image)."
+            )
         )
 
         return fig
@@ -284,7 +261,6 @@ def create_app(raw_data):
         (X, features, scaler) = deserialize(dataset)
 
         C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
-        # corr_linkage = hierarchy.ward(corr)
 
         fig = ff.create_dendrogram(
             C,
@@ -343,7 +319,9 @@ def create_app(raw_data):
             "template": "plotly_white",
             "title": (
                 "<b>Covariance (or correlation plot)</b> <br>"
-                "Features re-ordered based on hierarchical clustering"
+                "Features re-ordered based on hierarchical clustering. The ordering <br>"
+                "tries to group together features whose correlation patterns are close <br>"
+                "in the Euclidean metric"
             )
         })
         # Edit xaxis
@@ -495,10 +473,7 @@ def create_app(raw_data):
                     "Explained variance ratio" if method == "pca" else ""
                 ]
             ) + (
-                [
-                    "Samples in original coordinates\n"
-                    " (up to a linear combo of remaining components)"
-                ] if method == "pca" else
+                ["Samples in original coordinates\n"] if method == "pca" else
                 ["Samples in original coordinates"] if method == "ica" else
                 ["Reverse transformation for factorial analysis not supported :("]
             )
@@ -551,7 +526,9 @@ def create_app(raw_data):
         #
         # Projected limit bounds
         #
-        if method == "pca":
+        # FIXME: Whitened PCA somehow messes up the projected bounds
+        #
+        if method == "pca" and not whiten_bool:
 
             def add_projected_lines():
 

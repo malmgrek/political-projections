@@ -1,15 +1,21 @@
 """Plotting tools"""
 
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-def create_colors(num, cm=plt.cm.gist_rainbow):
+def create_colors(num, cm=plt.cm.gist_rainbow, fmt=None):
     """Create a sequence of colors
 
     """
-    return cm(np.linspace(0, 1, num))
+    colors = cm(np.linspace(0, 1, num))
+
+    if fmt == "hex":
+        colors = list(map(mpl.colors.rgb2hex, colors))
+
+    return colors
 
 
 def plot_training_data(ax, X, features, **kwargs):

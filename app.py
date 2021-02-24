@@ -626,7 +626,7 @@ def update_components(
                 y=decomposer.singular_values_,
                 mode="lines+markers",
                 line={"color": "black", "width": 1.0},
-                # marker={"style": "o"}
+                showlegend=False
             ),
             4, 1
         )
@@ -635,13 +635,10 @@ def update_components(
                 y=decomposer.explained_variance_ratio_.cumsum(),
                 mode="lines+markers",
                 line={"color": "black", "width": 1.0},
-                # marker={"style": "o"}
+                showlegend=False
             ),
             4, 2
         )
-
-
-
 
     #
     # Reverse transformed samples

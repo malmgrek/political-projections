@@ -80,6 +80,12 @@ def create_app(raw_data):
             children=[
                 html.Div(
                     children=[
+                        html.Div(
+                            style={"margin-top": "2em"}
+                        ),
+                        html.P(
+                            "Select dimensionality reduction method"
+                        ),
                         dcc.Dropdown(
                             id="dropdown-method",
                             options=[
@@ -88,15 +94,23 @@ def create_app(raw_data):
                                 {"label": "Rotated factiorial analysis", "value": "fa"}
                             ],
                             value="pca",
-                            style={"margin-top": "2em", "width": "20em"}
+                            style={"width": "20em"}
+                        ),
+                        html.P(
+                            "Visualize covariance or correlation matrix",
+                            style={"margin-top": "1em", "width": "20em"}
                         ),
                         dcc.Dropdown(
                             id="dropdown-corrcov",
                             options=[
-                                {"label": "Covariance in heatmap", "value": "cov"},
+                                {"label": "Covariance", "value": "cov"},
                                 {"label": "Spearman rank in heatmap", "value": "corr"},
                             ],
                             value="cov",
+                            style={"width": "20em"}
+                        ),
+                        html.P(
+                            "The number of plotted components",
                             style={"margin-top": "1em", "width": "20em"}
                         ),
                         dcc.Input(
@@ -106,7 +120,7 @@ def create_app(raw_data):
                             min=1,
                             max=1000,
                             value=3,
-                            style={"margin-top": "1em", "width": "20em"}
+                            style={"width": "20em"}
                         )
                     ],
                     style={"float": "left"}
@@ -145,7 +159,7 @@ def create_app(raw_data):
                     style={"float": "left", "margin-left": "2em"}
                 )
             ],
-            style={"margin-bottom": "15em", "float": "top"}
+            style={"margin-bottom": "20em", "float": "top"}
         ),
         dcc.Loading(
             children=dcc.Graph(id="graph-training-heatmap"),

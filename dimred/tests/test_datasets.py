@@ -15,12 +15,14 @@ from dimred.datasets import ches2019
 @pytest.mark.webtest
 def test_run_ches2019():
 
-    x = ches2019.download()
-    assert set(ches2019.features_bounds).issubset(x.columns)
+    raw = ches2019.download()
+    assert set(ches2019.features_bounds).issubset(raw.columns)
 
-    (X, features) = ches2019.prepare(
-        ches2019.cleanup(x, nan_floor_row=0, nan_floor_col=0)
+    training_data = ches2019.prepare(
+        ches2019.cleanup(raw, nan_floor_row=0, nan_floor_col=0)
     )
+    X = training_data.values
+    features = list(training_data.columns)
 
     assert X.shape == (277, 48)
     assert X[42, 42] == 6.0

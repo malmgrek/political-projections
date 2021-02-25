@@ -171,15 +171,15 @@ def create_app(raw_data):
             children=dcc.Graph(id="graph-components"),
         ),
 
-        # == Hidden div for dataset ============================
-        html.Div(id="cache", style={"display": "none"})
-        # ======================================================
+        # = Data to browser =
+        dcc.Store(id="cache")
+        # ===================
 
     ], style={"width": "800px", "margin": "0 auto"})
 
 
     @app.callback(
-        Output("cache", "children"),
+        Output("cache", "data"),
         [
             Input("checklist-normalize", "value"),
             Input("checklist-impute", "value"),
@@ -233,7 +233,7 @@ def create_app(raw_data):
     @app.callback(
         Output("graph-training-heatmap", "figure"),
         [
-            Input("cache", "children"),
+            Input("cache", "data"),
             Input("dropdown-method", "value"),
             Input("checklist-normalize", "value"),
             Input("checklist-impute", "value"),
@@ -263,7 +263,7 @@ def create_app(raw_data):
     @app.callback(
         Output("graph-corr-heatmap", "figure"),
         [
-            Input("cache", "children"),
+            Input("cache", "data"),
             Input("dropdown-method", "value"),
             Input("checklist-normalize", "value"),
             Input("checklist-impute", "value"),
@@ -372,7 +372,7 @@ def create_app(raw_data):
     @app.callback(
         Output("graph-components", "figure"),
         [
-            Input("cache", "children"),
+            Input("cache", "data"),
             Input("dropdown-method", "value"),
             Input("checklist-normalize", "value"),
             Input("checklist-impute", "value"),

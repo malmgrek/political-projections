@@ -1,6 +1,9 @@
 """Plotly Dash app for displaying analysis results
 
 TODO:
+- Separate decomposition figure to multiple callbacks
+  - In this way non-linear techniquest, that don't give
+    straightforward component vectors, can be supported
 - CB: NaN filtering parameters
 - Train/test split validation
 
@@ -478,11 +481,15 @@ def create_app(raw_data):
                 ],
             ],
             subplot_titles=[
-                "Components in normalized coordinates",
-                "Components (in orignal coordinates)" + (
+                "{} components in normalized coordinate system".format(
+                    components
+                ) + (
                     ", explained variance: {0:.0%}".format(
                         decomposer.explained_variance_ratio_[:components].sum()
                     ) if method == "pca" else ""
+                ),
+                "{0} components in original coordinate system".format(
+                    components
                 ),
                 "Probability density",
                 "Samples in 2D",

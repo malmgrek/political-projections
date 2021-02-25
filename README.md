@@ -8,14 +8,14 @@ This project implements some well-known dimensionality reduction methods
 - Independent component analysis (ICA)
 - Factorial analysis (FA)
 
-for the "expert level dataset" [2019 Chapel Hill expert
+for the "expert level dataset" in the [2019 Chapel Hill expert
 survey](https://www.chesdata.eu/2019-chapel-hill-expert-survey "2019_CHES"). In
-principle similar methods are applicable to any (e.g.) standardizable survey
-datasets. The main aim is to demonstrate a possible layout of a Python
-data analysis project as well as setting up an interactive [Plotly
+principle, analogous methodology is applicable to any standardizable survey
+datasets. The main aim of this project to demonstrate layout of a Python data
+analysis project as well as setting up an interactive [Plotly
 Dash](https://dash.plotly.com/ "Dash") service for exploring the results.
 
-For opinionated discussion about the methodology, see
+For opinionated discussion about the actual Chapel Hill analysis, see
 [Discussion](doc/discussion.md "Discussion").
 
 

@@ -80,7 +80,8 @@ The Plotly Dash service can be launched with
 python app.py
 ```
 
-By default, the service runs at <http://localhost:8050>.
+By default, the service runs at <http://localhost:8050>. See also a
+[screenshot](doc/images/dash.png "Screenshot from the Dash app") for reference.
 
 #### Jupyter notebooks and Git
 

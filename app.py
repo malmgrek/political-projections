@@ -686,7 +686,7 @@ def create_app(raw_data):
                     ),
                     5, 1
                 )
-        # NOTE: Reverse transform not supported for FactorialAnalysis
+        # NOTE: Reverse transform not supported for FactorAnalysis
         if method == "fa":
             fig.append_trace(
                 go.Scatter(),

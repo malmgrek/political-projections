@@ -7,7 +7,7 @@ dataset, as well as a model that can be used to "random generate" hypothetical
 political parties based on their 2D distribution (w.r.t. the dimension reduction
 method). Principal component analysis (PCA) together with data scaling and
 feature clustering/selection was studied the most but some experiments with
-Independent component analysis (ICA) and Factorial analysis (FA) were also done,
+Independent component analysis (ICA) and Factor analysis (FA) were also done,
 and the methods are included in the Dash dashboard. Below we only discuss the
 PCA related findings / methodology.
 
@@ -82,12 +82,12 @@ The Chapel Hill documentation shows the question specific scales -- the scales
 are 1–10, 0–10, 1–7, ..., that is, the data need to be scaled to uniform units.
 Two unit transformations were experimented:
 
-A) Affine transformation to the interval [-1, 1] 
-B) Affine transformation to zero mean and unit variance (standardization)
+1. Affine transformation to the interval [-1, 1] 
+2. Affine transformation to zero mean and unit variance (standardization)
 
-Method A is useful if we want to preserve the information on varying spreads
+Method 1 is useful if we want to preserve the information on varying spreads
 among features. For example, immigration views divide people more than views on
-culture or regional policymaking. Method B is useful if we want to study
+culture or regional policymaking. Method 2 is useful if we want to study
 correlation, not covariance.
 
 #### Re-order features based on hierarchicaly clustering
@@ -143,11 +143,10 @@ accurate but will do for now.
 
 ## Applications
 
-I implemented a semi-realistic web application that could be used for
-visualizing and studying the analysis results. In fact, considering the survey
-data size and unchanging nature, the application is very light weight on the
-back-end. Back-end processing load can still be reduced to very low level
-through memoization.
+I implemented a semi-realistic web application that can be used for visualizing
+and studying the analysis results. In fact, considering the survey data size and the fact that it changes rarely, the application is very lightweight on back-end.
+Back-end processing load can still be reduced to very low level through
+memoization.
 
 If the service had a million or so users per hour, the main bottleneck would be
 the memory / processing load on back-end server. I would consider using

@@ -6,7 +6,7 @@ This project implements some well-known dimensionality reduction methods
 
 - Principal component analysis (PCA),
 - Independent component analysis (ICA)
-- Factorial analysis (FA)
+- Factor analysis (FA)
 
 for the "expert level dataset" in the [2019 Chapel Hill expert
 survey](https://www.chesdata.eu/2019-chapel-hill-expert-survey "2019_CHES"). In
@@ -48,8 +48,7 @@ make stop
 ```
 
 When the application started succesfully, there should be a Dash application
-running at <http://localhost:8050>. Currently, setting up the container has been tested only on
-Fedora 32 and Podman instead of Docker.
+running at <http://localhost:8050>. 
 
 ### For developers
 

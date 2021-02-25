@@ -59,6 +59,11 @@ def deserialize(dataset):
 
 
 def create_app(raw_data):
+    """Wrapper for creating the app
+
+    Enables downloading the data to memory just once.
+
+    """
 
     app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 

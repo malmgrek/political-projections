@@ -717,7 +717,7 @@ if __name__ == "__main__":
     offline = args.offline
 
     try:
-        raw_data = ches2019.load() if offline else ches2019.update()
+        raw_data = ches2019.load() if offline else ches2019.download()
     except Exception:
         raw_data = ches2019.load()
         logging.warning("Something went wrong with downloading data, using cache.")

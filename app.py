@@ -25,7 +25,6 @@ from dash.exceptions import PreventUpdate
 from plotly.subplots import make_subplots
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
-from sklearn import decomposition
 
 from dimred import analysis, plot
 from dimred.datasets import ches2019
@@ -40,16 +39,10 @@ def checklist_to_bool(x):
     return x is not None and "v" in x
 
 
-def create_scaler(X, features, normalize_bool):
-    bounds = ches2019.features_bounds
-    (a, b) = np.array([bounds[f] for f in features]).T
-    return (
-        analysis.UnitScaler(X) if normalize_bool else
-        analysis.IntervalScaler(a=a, b=b)
-    )
-
-
 def deserialize(dataset):
+    """Deserialize a JSON dataset which has been updated
+
+    """
 
     if dataset is None:
         raise PreventUpdate
@@ -99,7 +92,7 @@ def create_app(raw_data):
                             options=[
                                 {"label": "Principal component analysis", "value": "pca"},
                                 {"label": "Independent component analysis", "value": "ica"},
-                                {"label": "Rotated factiorial analysis", "value": "fa"}
+                                {"label": "Rotated factor analysis", "value": "fa"}
                             ],
                             value="pca",
                             style={"width": "20em"}
@@ -112,7 +105,7 @@ def create_app(raw_data):
                             id="dropdown-corrcov",
                             options=[
                                 {"label": "Covariance", "value": "cov"},
-                                {"label": "Spearman rank in heatmap", "value": "corr"},
+                                {"label": "Spearman rank", "value": "corr"},
                             ],
                             value="cov",
                             style={"width": "20em"}
@@ -146,13 +139,6 @@ def create_app(raw_data):
                             id="checklist-impute",
                             options=[
                                 {"label": "Impute NaNs (otherwise drop)", "value": "v"},
-                            ],
-                            style={"margin-top": "0.5em", "width": "20em"}
-                        ),
-                        dcc.Checklist(
-                            id="checklist-whiten",
-                            options=[
-                                {"label": "Whiten", "value": "v"},
                             ],
                             style={"margin-top": "0.5em", "width": "20em"}
                         ),
@@ -196,43 +182,15 @@ def create_app(raw_data):
     )
     def Dataset(normalize, impute, corrcov):
 
-        normalize_bool = checklist_to_bool(normalize)
-        impute_bool = checklist_to_bool(impute)
-
-        training_data = ches2019.prepare(
-            ches2019.cleanup(
-                raw_data,
-                nan_floor_row=0.9,
-                nan_floor_col=0.75
-            )
+        (X, features, scaler) = ches2019.create_dataset(
+            data=raw_data,
+            normalize=checklist_to_bool(normalize),
+            impute=checklist_to_bool(impute),
+            corrcov=corrcov
         )
-
-        # Optionally impute
-        X = (
-            analysis.impute_missing(training_data.values, max_iter=21)
-            if impute_bool
-            else training_data.dropna().values
-        )
-        features = list(training_data.columns)
-
-        # So that xs -> ys
-        find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
-
-        # Re-order features
-        ordered_features = analysis.order_features(
-            # Ordering works better with scaled data
-            create_scaler(X, features, normalize_bool).transform(X),
-            features,
-            corrcov
-        )
-        X = X[:, find_permutation(features, ordered_features)]
-        # Create new scaler for further use using the re-ordered features set
-        scaler = create_scaler(X, ordered_features, normalize_bool)
-        # Scale training data
-        X = scaler.transform(X)
 
         return json.dumps({
-            "features": ordered_features,
+            "features": features,
             "X": X.tolist(),
             "scaler": scaler.to_dict()
         })
@@ -384,7 +342,6 @@ def create_app(raw_data):
             Input("dropdown-method", "value"),
             Input("checklist-normalize", "value"),
             Input("checklist-impute", "value"),
-            Input("checklist-whiten", "value"),
             Input("dropdown-corrcov", "value"),
             Input("input-components", "value"),
             Input("checklist-norint", "value"),
@@ -395,64 +352,26 @@ def create_app(raw_data):
             method,
             normalize,
             impute,
-            whiten,
             corrcov,
             components,
             norint,
     ):
 
-        whiten_bool = checklist_to_bool(whiten)
         norint_bool = checklist_to_bool(norint)
 
         (X, features, scaler) = deserialize(dataset)
-
-        bounds = np.array([ches2019.features_bounds[f] for f in features])
-
-        #
-        # Form decomposition
-        #
-        if method == "pca":
-            decomposer = decomposition.PCA(whiten=whiten_bool).fit(X)
-        if method == "ica":
-            decomposer = decomposition.FastICA(
-                random_state=np.random.RandomState(42),
-                whiten=whiten_bool,
-                max_iter=500,
-                tol=1e-3
-            ).fit(X)
-        if method == "fa":
-            decomposer = decomposition.FactorAnalysis(rotation="varimax").fit(X)
-        Y = decomposer.transform(X)
-        Y_2d = Y[:, :2]
-        U = decomposer.components_
-        V = scaler.inverse_transform(U)
-
-        #
-        # Fit KDE and sample
-        # TODO: Cap samples after inverse transforming
-        #
-        kde = analysis.fit_kde(Y_2d)
         num_samples = 10
-        Y_samples = kde.sample(num_samples)
-        (x, y, density, xlim, ylim) = analysis.score_density_grid(
-            kde=kde, Y=Y_2d, num=100
+        result = ches2019.analyze(
+            X,
+            features,
+            scaler,
+            method=method,
+            norint=norint_bool,
+            components=components,
+            num_samples=num_samples
         )
-
-        #
-        # Inverse transform not supported for FA :(
-        #
-        Y_samples_full = np.hstack((
-            Y_samples,
-            np.zeros((num_samples, len(features) - 2))
-        ))
-        if method in ["pca", "ica"]:
-            X_samples = scaler.inverse_transform(
-                decomposer.inverse_transform(Y_samples_full)
-            )
-            X_samples = (
-                X_samples if norint_bool
-                else np.clip(np.rint(X_samples), *bounds.T)
-            )
+        (U, V, Y_2d, Y_samples, X_samples, statistics) = result["decomposition"]
+        (x, y, density, xlim, ylim) = result["density"]
 
         # TODO: Add one more row with principal components
         fig = make_subplots(
@@ -485,7 +404,7 @@ def create_app(raw_data):
                     components
                 ) + (
                     ", explained variance: {0:.0%}".format(
-                        decomposer.explained_variance_ratio_[:components].sum()
+                        statistics["explained_variance"]
                     ) if method == "pca" else ""
                 ),
                 "{0} components in original coordinate system".format(
@@ -501,7 +420,7 @@ def create_app(raw_data):
             ) + (
                 ["Samples in original coordinates\n"] if method == "pca" else
                 ["Samples in original coordinates"] if method == "ica" else
-                ["Reverse transformation for factorial analysis not supported :("]
+                ["Reverse transformation for factor analysis not supported :("]
             )
         )
 
@@ -554,7 +473,7 @@ def create_app(raw_data):
         #
         # FIXME: Whitened PCA somehow messes up the projected bounds
         #
-        if method == "pca" and not whiten_bool:
+        if method == "pca" and False:  # FIXME
 
             def add_projected_lines():
 
@@ -652,9 +571,13 @@ def create_app(raw_data):
         # Principal values
         #
         if method == "pca":
+            (
+                singular_values,
+                explained_variance_ratio
+            ) = ches2019.calculate_pca_statistics(X)
             fig.append_trace(
                 go.Scatter(
-                    y=decomposer.singular_values_,
+                    y=singular_values,
                     mode="lines+markers",
                     line={"color": "black", "width": 1.0},
                     showlegend=False
@@ -663,7 +586,7 @@ def create_app(raw_data):
             )
             fig.append_trace(
                 go.Scatter(
-                    y=decomposer.explained_variance_ratio_.cumsum(),
+                    y=explained_variance_ratio.cumsum(),
                     mode="lines+markers",
                     line={"color": "black", "width": 1.0},
                     showlegend=False

@@ -13,6 +13,9 @@ import requests
 
 import numpy as np
 import pandas as pd
+from sklearn import decomposition
+
+from dimred import analysis
 
 
 def here(*args):
@@ -137,3 +140,126 @@ def prepare(
 
     """
     return x.groupby(x[groupby_feature]).median()
+
+
+def create_scaler(X, features, normalize_bool):
+    """Construct a scaler based on features
+
+    """
+    bounds = features_bounds
+    (a, b) = np.array([bounds[f] for f in features]).T
+    return (
+        analysis.UnitScaler(X) if normalize_bool else
+        analysis.IntervalScaler(a=a, b=b)
+    )
+
+
+def create_dataset(data, normalize: bool, impute: bool, corrcov: str):
+    """Create training data, features list and scaler object
+
+    """
+
+    training_data = prepare(
+        cleanup(
+            data, nan_floor_row=0.9, nan_floor_col=0.75
+        )
+    )
+
+    # Optionally impute
+    X = (
+        analysis.impute_missing(training_data.values, max_iter=21)
+        if impute
+        else training_data.dropna().values
+    )
+    features = list(training_data.columns)
+
+    # So that xs -> ys
+    find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
+
+    # Re-order features
+    ordered_features = analysis.order_features(
+        # Ordering works better with scaled data
+        create_scaler(X, features, normalize).transform(X),
+        features,
+        corrcov
+    )
+    X = X[:, find_permutation(features, ordered_features)]
+    # Create new scaler for further use using the re-ordered features set
+    scaler = create_scaler(X, ordered_features, normalize)
+    # Scale training data
+    X = scaler.transform(X)
+
+    return (X, ordered_features, scaler)
+
+
+def analyze(X, features, scaler, method="pca", norint=True, components=2, num_samples=10):
+    """Dimensionality reduction, KDE and sampling
+
+    """
+
+    bounds = np.array([features_bounds[f] for f in features])
+    statistics = None
+
+    #
+    # Form decomposition
+    #
+    if method == "pca":
+        decomposer = decomposition.PCA(n_components=components, whiten=False).fit(X)
+        statistics = {"explained_variance": decomposer.explained_variance_ratio_.sum()}
+    if method == "ica":
+        decomposer = decomposition.FastICA(
+            n_components=components,
+            random_state=np.random.RandomState(42),
+            whiten=True,
+            max_iter=1000,
+            # tol=1e-1
+        ).fit(X)
+    if method == "fa":
+        decomposer = decomposition.FactorAnalysis(
+            n_components=components, rotation="varimax"
+        ).fit(X)
+    Y = decomposer.transform(X)
+    Y_2d = Y[:, :2]
+    U = decomposer.components_
+    V = scaler.inverse_transform(U)
+
+    #
+    # Fit KDE and sample
+    #
+    kde = analysis.fit_kde(Y_2d)
+    Y_samples = kde.sample(num_samples)
+    (x, y, density, xlim, ylim) = analysis.score_density_grid(
+        kde=kde, Y=Y_2d, num=100
+    )
+
+    #
+    # Inverse transform not supported for FA :(
+    #
+    # TODO: Work out FA formula manually
+    #
+    Y_samples_full = np.hstack((
+        Y_samples,
+        np.zeros((num_samples, components - 2))
+    ))
+    if method in ["pca", "ica"]:
+        X_samples = scaler.inverse_transform(
+            decomposer.inverse_transform(Y_samples_full)
+        )
+        X_samples = (
+            X_samples if norint else np.clip(np.rint(X_samples), *bounds.T)
+        )
+    else:
+        X_samples = None
+
+    return {
+        "decomposition": (U, V, Y_2d, Y_samples, X_samples, statistics),
+        "density": (x, y, density, xlim, ylim)
+    }
+
+
+def calculate_pca_statistics(X):
+    decomposer = decomposition.PCA().fit(X)
+    return (
+        decomposer.singular_values_,
+        decomposer.explained_variance_ratio_
+    )

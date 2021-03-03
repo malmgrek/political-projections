@@ -61,7 +61,7 @@ def fit_kde(Y: np.ndarray):
     Grid searches for a satisfactory `bandwidth` parameter.
 
     """
-    params = {'bandwidth': np.logspace(-1, 1, 20)}
+    params = {'bandwidth': np.logspace(-2, 2, 20)}
     grid = GridSearchCV(KernelDensity(), params)
     grid.fit(Y)
     kde = grid.best_estimator_

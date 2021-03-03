@@ -35,6 +35,10 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 TIMEOUT = 10
 
 
+def throw(ex):
+    raise ex
+
+
 def checklist_to_bool(x):
     return x is not None and "v" in x
 
@@ -120,13 +124,14 @@ def create_app(raw_data):
                             placeholder="Number of components visualized",
                             min=1,
                             max=1000,
-                            value=3,
+                            value=2,
                             style={"width": "20em"}
                         )
                     ],
                     style={"float": "left"}
                 ),
                 html.Div(
+                    # TODO: Combine all checklists
                     children=[
                         dcc.Checklist(
                             id="checklist-normalize",
@@ -358,20 +363,26 @@ def create_app(raw_data):
     ):
 
         norint_bool = checklist_to_bool(norint)
+        analyze = (
+            ches2019.analyze_pca if method == "pca" else
+            ches2019.analyze_ica if method == "ica" else
+            ches2019.analyze_fa if method == "fa" else
+            throw(NotImplementedError("Method not supported"))
+        )
 
         (X, features, scaler) = deserialize(dataset)
         num_samples = 10
-        result = ches2019.analyze(
+        result = analyze(
             X,
             features,
             scaler,
-            method=method,
             norint=norint_bool,
             components=components,
             num_samples=num_samples
         )
         (U, V, Y_2d, Y_samples, X_samples, statistics) = result["decomposition"]
         (x, y, density, xlim, ylim) = result["density"]
+        (min_bounds, max_bounds) = result["reduced_bounds"]
 
         # TODO: Add one more row with principal components
         fig = make_subplots(
@@ -473,56 +484,47 @@ def create_app(raw_data):
         #
         # FIXME: Whitened PCA somehow messes up the projected bounds
         #
-        if method == "pca" and False:  # FIXME
 
-            def add_projected_lines():
+        if (min_bounds is not None) and (max_bounds is not None):
 
-                rotate = lambda x: np.dot(U, x)
-                translate = lambda x, n: x - np.dot(X.mean(axis=0), n) * n
-                n_dims = len(features)
-                bounds_scaled = scaler.transform(bounds.T).T
+            def add_lines():
+                # Need to encapsulate because there is no 'let' in Python :(
 
-                for (i, (a, b)) in enumerate(bounds_scaled):
+                x = np.array([-100, 100])
+                widen = lambda x, y: [x - 0.2 * abs(x - y), y + 0.2 * abs(x - y)]
+                xlim = widen(min(Y_2d[:, 0]), max(Y_2d[:, 0]))
+                ylim = widen(min(Y_2d[:, 1]), max(Y_2d[:, 1]))
+                fig.update_xaxes(range=xlim, row=3, col=2)
+                fig.update_yaxes(range=ylim, row=3, col=2)
 
-                    for (c, color) in zip((a, b), ("blue", "red")):
+                for (slope, intercept) in min_bounds:
+                    y = slope * x + intercept
+                    fig.append_trace(
+                        go.Scatter(
+                            x=x,
+                            y=y,
+                            line=dict(color="blue", width=0.5),
+                            showlegend=False
+                        ),
+                        3, 2
+                    )
 
-                        n_vec = (np.arange(n_dims) == i) * c
-                        a_vec = n_vec
+                for (slope, intercept) in max_bounds:
+                    y = slope * x + intercept
+                    fig.append_trace(
+                        go.Scatter(
+                            x=x,
+                            y=y,
+                            line=dict(color="red", width=0.5),
+                            showlegend=False
+                        ),
+                        3, 2
+                    )
 
-                        #
-                        # PCA transformation first shifs to zero mean and then rotates.
-                        # For plane's vector geometry it means that the NORMAL VECTOR is
-                        # just rotated and the OFFSET VECTOR is
-                        #
-                        # (1) translated in the plane normal direction
-                        # (2) rotated by the rotation
-                        #
-                        a_vec = rotate(translate(a_vec, n_vec))
-                        n_vec = rotate(n_vec)
-                        (slope, intercept) = analysis.intersect_plane_xy(n_vec, a_vec)
-                        x = np.array([-100, 100])
-                        y = slope * x + intercept
+            ###########
+            add_lines()
+            ###########
 
-                        fig.append_trace(
-                            go.Scatter(
-                                x=x,
-                                y=y,
-                                line=dict(color=color, width=0.5),
-                                showlegend=False
-                            ),
-                            3, 2
-                        )
-                        widen = lambda x, y: [x - 0.2 * abs(x - y), y + 0.2 * abs(x - y)]
-                        xlim = widen(min(Y_2d[:, 0]), max(Y_2d[:, 0]))
-                        ylim = widen(min(Y_2d[:, 1]), max(Y_2d[:, 1]))
-                        fig.update_xaxes(range=xlim, row=3, col=2)
-                        fig.update_yaxes(range=ylim, row=3, col=2)
-
-                return
-
-            # ===================
-            add_projected_lines()
-            # ===================
 
         #
         # 2d representation of density and projected points

@@ -14,17 +14,17 @@ PCA related findings / methodology.
 ## Key findings
 
 PCA indicates that most significant spread in the dataset's parties' views lie
-along the _Liberal/multiculturalism/ecologism_ –
+    along the _Liberal/multiculturalism/ecologism_ –
 _Nationalism/conservativism/anti-immigration_ axis. Secondly, but less
-significantly, the _Economic left_ – _right_ axis also importantly explains variation in
-the questionnaire responses. The "ultra-right" seems to form a separate
-cluster which is at a very extreme on the first axis but right-centrist on the
-other axis. All other type of parties form a continuum blob.
-
+significantly, the _Economic left_ – _right_ axis also importantly explains
+variation in the questionnaire responses. The "ultra-right" seems to form a
+separate cluster which is at a very extreme on the first axis but right-centrist
+on the other axis. All other type of parties form a continuum blob.
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
 **Table of Contents**
 
+- [Introduction](#introduction)
 - [Analysis pipeline](#analysis-pipeline)
     - [1. Data preparation](#1-data-preparation)
         - [1.1 Manual feature overview](#11-manual-feature-overview)
@@ -39,6 +39,15 @@ other axis. All other type of parties form a continuum blob.
 
 <!-- markdown-toc end -->
 
+
+## Introduction
+
+Dimensionality reduction can be defined as a procedure in which we search for a mapping from the data space to itself `f :: X -> X` such that `f(x) = h(g(x))` where `g` is a mapping to a lower dimension. For example, in PCA based dimensionality reduction, the mapping `g` is a composition of orthogonal rotation and truncation. In fact, among all the unitary rotation based dimensionality reductions, the PCA based method minimizes the Euclidean norm `|f(X) - X|`. 
+
+Other methods such as probabilistic PCA, ICA, factorial analysis, kernel PCA,
+and autoassociative neural networks fall into the same logic whereas the
+constraints for the mapping are different. Selecting the correct method for a
+task depends on data size, data quality, linearity of the underlying dependencies, among others.
 
 ## Analysis pipeline
 
@@ -120,7 +129,8 @@ expressing a plane in form `normal . x = a . x`. Since the PCA transformation is
 `Translation + Rotation`, its `normal` is just rotated whereas `a` is projected
 onto the line spanned by `normal`, and rotated.
 
-> **Remark:** Some of the _projected_ data points may be out of the _projected_ bounds in 2D because the remaining dimensions are ignored.
+> **Remark:** Some of the _projected_ data points may be out of the _projected_
+> bounds in 2D because the remaining dimensions are ignored.
 
 ### 3. Kernel density estimation in 2D
 
@@ -139,14 +149,16 @@ is a one-to-one mapping. To ensure "physical" outcomes in original coordinates,
 we clip to min/max limits and round to nearest integer. This is not exactly
 accurate but will do for now.
 
-> **Possible improvements:** Mathematically rigorous way of restricting the probability distribution.
+> **Possible improvements:** Mathematically rigorous way of restricting the
+> probability distribution.
 
 ## Applications
 
 I implemented a semi-realistic web application that can be used for visualizing
-and studying the analysis results. In fact, considering the survey data size and the fact that it changes rarely, the application is very lightweight on back-end.
-Back-end processing load can still be reduced to very low level through
-memoization.
+and studying the analysis results. In fact, considering the survey data size and
+the fact that it changes rarely, the application is very lightweight on
+back-end. Back-end processing load can still be reduced to very low level
+through memoization.
 
 If the service had a million or so users per hour, the main bottleneck would be
 the memory / processing load on back-end server. I would consider using

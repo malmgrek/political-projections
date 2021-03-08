@@ -384,7 +384,6 @@ def create_app(raw_data):
         (x, y, density, xlim, ylim) = result["density"]
         (min_bounds, max_bounds) = result["reduced_bounds"]
 
-        # TODO: Add one more row with principal components
         fig = make_subplots(
             rows=5,
             cols=2,
@@ -451,7 +450,7 @@ def create_app(raw_data):
             )
 
         #
-        # Principal compoments in scalet coordinates
+        # Principal compoments in scaled coordinates
         #
         for (i, color) in enumerate(colors):
             fig.append_trace(

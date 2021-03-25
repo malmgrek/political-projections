@@ -6,6 +6,7 @@ FIXME: Fix Unnamed columns in DataFrame
 
 """
 
+from collections import OrderedDict
 from io import StringIO
 import logging
 import os
@@ -13,7 +14,6 @@ import requests
 
 import numpy as np
 import pandas as pd
-from sklearn import decomposition
 
 from dimred import analysis
 
@@ -22,63 +22,63 @@ def here(*args):
     return os.path.join(os.path.dirname(__file__), *args)
 
 
+url = "https://www.chesdata.eu/s/CHES2019_experts.csv"
+
+
 #
 # Manually picked subset of columns and their min/max limits, based on survey
 # documentation PDF
 #
-features_bounds = {
-    "position": [1.0, 7.0],
-    "eu_salience": [0.0, 10.0],
-    "eu_dissent": [0.0, 10.0],
-    "eu_blur": [0.0, 10.0],
-    "lrecon": [0.0, 10.0],
-    "lrecon_blur": [0.0, 10.0],
-    "lrecon_dissent": [0.0, 10.0],
-    "lrecon_salience": [0.0, 10.0],
-    "galtan": [0.0, 10.0],
-    "galtan_blur": [0.0, 10.0],
-    "galtan_dissent": [0.0, 10.0],
-    "galtan_salience": [0.0, 10.0],
-    "lrgen": [0.0, 10.0],
-    "immigrate_policy": [0.0, 10.0],
-    "immigra_salience": [0.0, 10.0],
-    "immigrate_dissent": [0.0, 10.0],
-    "multiculturalism": [0.0, 10.0],
-    "multicult_salience": [0.0, 10.0],
-    "multicult_dissent": [0.0, 10.0],
-    "redistribution": [0.0, 10.0],
-    "redist_salience": [0.0, 10.0],
-    "environment": [0.0, 10.0],
-    "enviro_salience": [0.0, 10.0],
-    "spendvtax": [0.0, 10.0],
-    "deregulation": [0.0, 10.0],
-    "econ_interven": [0.0, 10.0],
-    "civlib_laworder": [0.0, 10.0],
-    "sociallifestyle": [0.0, 10.0],
-    "religious_principles": [0.0, 10.0],
-    "ethnic_minorities": [0.0, 10.0],
-    "nationalism": [0.0, 10.0],
-    "urban_rural": [0.0, 10.0],
-    "protectionism": [0.0, 10.0],
-    "regions": [0.0, 10.0],
-    "russian_interference": [0.0, 10.0],
-    "anti_islam_rhetoric": [0.0, 10.0],
-    "people_vs_elite": [0.0, 10.0],
-    "antielite_salience": [0.0, 10.0],
-    "corrupt_salience": [0.0, 10.0],
-    "members_vs_leadership": [0.0, 10.0],
-    "eu_cohesion": [1.0, 7.0],
-    "eu_foreign": [1.0, 7.0],
-    "eu_intmark": [1.0, 7.0],
-    "eu_budgets": [1.0, 7.0],
-    "eu_asylum": [1.0, 7.0],
-    "eu_econ_require": [1.0, 7.0],
-    "eu_political_require": [1.0, 7.0 ],
-    "eu_googov_require": [1.0, 7.0]
-}
-
-
-url = "https://www.chesdata.eu/s/CHES2019_experts.csv"
+features_bounds = OrderedDict(
+    position=[1.0, 7.0],
+    eu_salience=[0.0, 10.0],
+    eu_dissent=[0.0, 10.0],
+    eu_blur=[0.0, 10.0],
+    lrecon=[0.0, 10.0],
+    lrecon_blur=[0.0, 10.0],
+    lrecon_dissent=[0.0, 10.0],
+    lrecon_salience=[0.0, 10.0],
+    galtan=[0.0, 10.0],
+    galtan_blur=[0.0, 10.0],
+    galtan_dissent=[0.0, 10.0],
+    galtan_salience=[0.0, 10.0],
+    lrgen=[0.0, 10.0],
+    immigrate_policy=[0.0, 10.0],
+    immigra_salience=[0.0, 10.0],
+    immigrate_dissent=[0.0, 10.0],
+    multiculturalism=[0.0, 10.0],
+    multicult_salience=[0.0, 10.0],
+    multicult_dissent=[0.0, 10.0],
+    redistribution=[0.0, 10.0],
+    redist_salience=[0.0, 10.0],
+    environment=[0.0, 10.0],
+    enviro_salience=[0.0, 10.0],
+    spendvtax=[0.0, 10.0],
+    deregulation=[0.0, 10.0],
+    econ_interven=[0.0, 10.0],
+    civlib_laworder=[0.0, 10.0],
+    sociallifestyle=[0.0, 10.0],
+    religious_principles=[0.0, 10.0],
+    ethnic_minorities=[0.0, 10.0],
+    nationalism=[0.0, 10.0],
+    urban_rural=[0.0, 10.0],
+    protectionism=[0.0, 10.0],
+    regions=[0.0, 10.0],
+    russian_interference=[0.0, 10.0],
+    anti_islam_rhetoric=[0.0, 10.0],
+    people_vs_elite=[0.0, 10.0],
+    antielite_salience=[0.0, 10.0],
+    corrupt_salience=[0.0, 10.0],
+    members_vs_leadership=[0.0, 10.0],
+    eu_cohesion=[1.0, 7.0],
+    eu_foreign=[1.0, 7.0],
+    eu_intmark=[1.0, 7.0],
+    eu_budgets=[1.0, 7.0],
+    eu_asylum=[1.0, 7.0],
+    eu_econ_require=[1.0, 7.0],
+    eu_political_require=[1.0, 7.0 ],
+    eu_googov_require=[1.0, 7.0]
+)
 
 
 def read_csv(res):
@@ -89,13 +89,13 @@ def download():
     """Download dataset from web
 
     """
-    logging.info("GET {}".format(url.format(url)))
-    res = requests.get("https://www.chesdata.eu/s/CHES2019_experts.csv")
+    logging.info("GET {}".format(url))
+    res = requests.get(url)
     res.raise_for_status()
     return read_csv(res)
 
 
-def update(filepath=here("cache", "dump.csv")):
+def update(filepath=here("cache", "ches2019.csv")):
     """Download and save
 
     """
@@ -105,7 +105,7 @@ def update(filepath=here("cache", "dump.csv")):
     return x
 
 
-def load(filepath=here("cache", "dump.csv")):
+def load(filepath=here("cache", "ches2019.csv")):
     """Load from disk
 
     """
@@ -189,174 +189,3 @@ def create_dataset(data, normalize: bool, impute: bool, corrcov: str):
     X = scaler.transform(X)
 
     return (X, ordered_features, scaler)
-
-
-def analyze_pca(
-        X,
-        features,
-        scaler,
-        components=2,
-        num_samples=10,
-        norint=True,
-        **unused
-):
-
-    bounds = np.array([features_bounds[f] for f in features])
-
-    decomposer = decomposition.PCA(whiten=False).fit(X)
-    statistics = {
-        "explained_variance": (
-            decomposer.explained_variance_ratio_[:components].sum()
-        )
-    }
-
-    Y = decomposer.transform(X)
-    Y_2d = Y[:, :2]
-    U = decomposer.components_
-    V = scaler.inverse_transform(U)
-
-    # Fit KDE and sample
-    kde = analysis.fit_kde(Y_2d)
-    Y_samples = kde.sample(num_samples)
-    (x, y, density, xlim, ylim) = analysis.score_density_grid(
-        kde=kde, Y=Y_2d, num=100
-    )
-
-    # "Inverse" transform
-    Y_samples_full = np.hstack((
-        Y_samples,
-        np.zeros((num_samples, len(features) - 2))
-    ))
-    X_samples = scaler.inverse_transform(
-        decomposer.inverse_transform(Y_samples_full)
-    )
-    X_samples = (
-        X_samples if norint else np.clip(np.rint(X_samples), *bounds.T)
-    )
-
-    # Deduce bound lines (slope, intercept) in 2D
-    rotate = lambda x: np.dot(U, x)
-    translate = lambda x, n: x - np.dot(X.mean(axis=0), n) * n
-    n_dims = len(features)
-    bounds_scaled = scaler.transform(bounds.T)
-
-    def mapper(i, c):
-        n_vec = (np.arange(n_dims) == i) * c
-        a_vec = n_vec
-        #
-        # PCA transformation first shifs to zero mean and then rotates.
-        # For plane's vector geometry it means that the NORMAL VECTOR is
-        # just rotated and the OFFSET VECTOR is
-        #
-        # (1) translated in the plane normal direction
-        # (2) rotated by the rotation
-        #
-        return analysis.intersect_plane_xy(
-            rotate(n_vec),
-            rotate(translate(a_vec, n_vec))
-        )
-
-    min_bounds = list(map(
-        lambda args: mapper(*args), enumerate(bounds_scaled[0])
-    ))
-    max_bounds = list(map(
-        lambda args: mapper(*args), enumerate(bounds_scaled[1])
-    ))
-
-    return {
-        "reduced_bounds": (min_bounds, max_bounds),
-        "decomposition": (U, V, Y_2d, Y_samples, X_samples, statistics),
-        "density": (x, y, density, xlim, ylim),
-    }
-
-
-def analyze_ica(
-        X,
-        features,
-        scaler,
-        components=2,
-        num_samples=10,
-        norint=True,
-        **unused
-):
-
-    bounds = np.array([features_bounds[f] for f in features])
-
-    decomposer = decomposition.FastICA(
-        n_components=components,
-        random_state=np.random.RandomState(42),
-        whiten=True,
-        max_iter=1000,
-        # tol=1e-1
-    ).fit(X)
-
-    Y = decomposer.transform(X)
-    Y_2d = Y[:, :2]
-    U = decomposer.components_
-    V = scaler.inverse_transform(U)
-
-    # Fit KDE and sample
-    kde = analysis.fit_kde(Y_2d)
-    Y_samples = kde.sample(num_samples)
-    (x, y, density, xlim, ylim) = analysis.score_density_grid(
-        kde=kde, Y=Y_2d, num=100
-    )
-
-    # "Inverse" transform
-    X_samples = scaler.inverse_transform(
-        decomposer.inverse_transform(Y_samples)
-    )
-    X_samples = (
-        X_samples if norint else np.clip(np.rint(X_samples), *bounds.T)
-    )
-
-    return {
-        "reduced_bounds": (None, None),
-        "decomposition": (U, V, Y_2d, Y_samples, X_samples, None),
-        "density": (x, y, density, xlim, ylim)
-    }
-
-
-def analyze_fa(
-        X,
-        features,
-        scaler,
-        components=2,
-        num_samples=10,
-        **unused
-):
-
-    bounds = np.array([features_bounds[f] for f in features])
-
-    decomposer = decomposition.FactorAnalysis(
-        n_components=components, rotation="varimax"
-    ).fit(X)
-
-    Y = decomposer.transform(X)
-    Y_2d = Y[:, :2]
-    U = decomposer.components_
-    V = scaler.inverse_transform(U)
-
-    # Fit KDE and sample
-    kde = analysis.fit_kde(Y_2d)
-    Y_samples = kde.sample(num_samples)
-    (x, y, density, xlim, ylim) = analysis.score_density_grid(
-        kde=kde, Y=Y_2d, num=100
-    )
-
-    # "Inverse" transform
-    # TODO X_samples = ...
-
-    return {
-        "reduced_bounds": (None, None),
-        "decomposition": (U, V, Y_2d, Y_samples, None, None),
-        "density": (x, y, density, xlim, ylim)
-    }
-
-
-def calculate_pca_statistics(X):
-    decomposer = decomposition.PCA().fit(X)
-    return (
-        decomposer.singular_values_,
-        decomposer.explained_variance_ratio_
-    )

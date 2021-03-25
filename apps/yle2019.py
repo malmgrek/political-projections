@@ -2,7 +2,7 @@
 
 TODO:
 - Separate decomposition figure to multiple callbacks
-  - In this way non-linear techniquest, that don't give
+  - In this way non-linear techniques, that don't give
     straightforward component vectors, can be supported
 - CB: NaN filtering parameters
 - Train/test split validation
@@ -26,21 +26,19 @@ from plotly.subplots import make_subplots
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
 
-from dimred import analysis, plot
-from dimred.datasets import ches2019
+from dimred import analysis, plot, utils
+from dimred.datasets.yle2019 import (
+    create_dataset,
+    download,
+    features_bounds,
+    load,
+    url
+)
 
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
 
 TIMEOUT = 10
-
-
-def throw(ex):
-    raise ex
-
-
-def checklist_to_bool(x):
-    return x is not None and "v" in x
 
 
 def deserialize(dataset):
@@ -69,16 +67,17 @@ def create_app(raw_data):
 
     app.layout = html.Div([
         html.H2(
-            "Chapel Hill expert survey"
+            "YLE 2019 Finland parlamentary elections candidate questionnaire"
         ),
         html.P(
-            "Dimensionality reduction to two dimensions with various methods"
+            "Dimension reduction with various methods of the results "
+            "for candidates that got through."
         ),
         html.A(
             html.P(
-                "Code book"
+                "Source data"
             ),
-            href="https://www.chesdata.eu/s/2019_CHES_codebook.pdf",
+            href=url,
             target="_blank"
         ),
         html.Div(
@@ -187,10 +186,10 @@ def create_app(raw_data):
     )
     def Dataset(normalize, impute, corrcov):
 
-        (X, features, scaler) = ches2019.create_dataset(
+        (X, features, scaler) = create_dataset(
             data=raw_data,
-            normalize=checklist_to_bool(normalize),
-            impute=checklist_to_bool(impute),
+            normalize=utils.checklist_to_bool(normalize),
+            impute=utils.checklist_to_bool(impute),
             corrcov=corrcov
         )
 
@@ -362,12 +361,12 @@ def create_app(raw_data):
             norint,
     ):
 
-        norint_bool = checklist_to_bool(norint)
+        norint_bool = utils.checklist_to_bool(norint)
         analyze = (
-            ches2019.analyze_pca if method == "pca" else
-            ches2019.analyze_ica if method == "ica" else
-            ches2019.analyze_fa if method == "fa" else
-            throw(NotImplementedError("Method not supported"))
+            analysis.analyze_pca if method == "pca" else
+            analysis.analyze_ica if method == "ica" else
+            analysis.analyze_fa if method == "fa" else
+            utils.throw(NotImplementedError("Method not supported"))
         )
 
         (X, features, scaler) = deserialize(dataset)
@@ -375,6 +374,7 @@ def create_app(raw_data):
         result = analyze(
             X,
             features,
+            features_bounds,
             scaler,
             norint=norint_bool,
             components=components,
@@ -575,7 +575,7 @@ def create_app(raw_data):
             (
                 singular_values,
                 explained_variance_ratio
-            ) = ches2019.calculate_pca_statistics(X)
+            ) = analysis.calculate_pca_statistics(X)
             fig.append_trace(
                 go.Scatter(
                     y=singular_values,
@@ -641,9 +641,9 @@ if __name__ == "__main__":
     offline = args.offline
 
     try:
-        raw_data = ches2019.load() if offline else ches2019.download()
+        raw_data = load() if offline else download()
     except Exception:
-        raw_data = ches2019.load()
+        raw_data = load()
         logging.warning("Something went wrong with downloading data, using cache.")
 
     app = create_app(raw_data)

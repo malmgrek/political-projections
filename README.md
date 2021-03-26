@@ -8,14 +8,17 @@ This project implements some well-known dimensionality reduction methods
 - Independent component analysis (ICA)
 - Factor analysis (FA)
 
-for the "expert level dataset" in the [2019 Chapel Hill expert
-survey](https://www.chesdata.eu/2019-chapel-hill-expert-survey "2019_CHES"). In
-principle, analogous methodology is applicable to any standardizable survey
-datasets. The main aim of this project to demonstrate layout of a Python data
-analysis project as well as setting up an interactive [Plotly
-Dash](https://dash.plotly.com/ "Dash") service for exploring the results.
+for the [Finnish national broadcasting company
+survey](https://yle.fi/uutiset/3-10725384 "2019 YLE") for parliamentary
+electoral candidates, as well as the "expert level dataset" in the [2019 Chapel
+Hill expert survey](https://www.chesdata.eu/2019-chapel-hill-expert-survey
+"2019_CHES"). In principle, analogous methodology is applicable to any
+standardizable survey datasets. The main aim of this project to demonstrate
+layout of a Python data analysis project as well as setting up an interactive
+[Plotly Dash](https://dash.plotly.com/ "Dash") service for exploring the
+results.
 
-For opinionated discussion about the actual Chapel Hill analysis, see
+For opinionated discussion about analytical choices, see
 [Discussion](doc/discussion.md "Discussion").
 
 
@@ -28,7 +31,6 @@ For opinionated discussion about the actual Chapel Hill analysis, see
         - [Install development environment](#install-development-environment)
         - [Unit testing](#unit-testing)
         - [Running the Dash service locally](#running-the-dash-service-locally)
-        - [Jupyter notebooks and Git](#jupyter-notebooks-and-git)
 
 <!-- markdown-toc end -->
 
@@ -81,11 +83,3 @@ python app.py
 
 By default, the service runs at <http://localhost:8050>. There is also a
 [screenshot](doc/images/dash.png "Screenshot from the Dash app") just in case.
-
-#### Jupyter notebooks and Git
-
-If you want to track Jupyter notebooks, purge them before staging:
-
-``` shell
-bash bin/clean_notebooks
-```

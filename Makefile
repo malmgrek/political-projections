@@ -1,10 +1,10 @@
 ##
-# Dimred-demo
+# Political projections
 #
 # @file
 # @version 0.1
 
-IMAGENAME=dimred-demo
+IMAGENAME=political-projections
 
 #
 # Docker
@@ -20,22 +20,5 @@ up: build run
 
 stop:
 	@docker stop demo
-
-
-#
-# Podman
-#
-
-build-podman:
-	podman build -t ${IMAGENAME} .
-
-run-podman:
-	@podman run -p 8050\:8050 --name demo ${IMAGENAME}
-
-up-podman: build-podman run-podman
-
-stop-podman:
-	@podman stop demo
-
 
 # end

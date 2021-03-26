@@ -158,7 +158,8 @@ app_data = {
         "Dimensionality reduction of the survey responses. Various common methods "
         "are supported. The original set of survey questions has been reduced to "
         "the politically 'most interesting' questions directly related to values, "
-        "economy, etc. Contains only those candidates who got through."
+        "economy, etc. Contains only those candidates who got through in the "
+        "2019 Finnish parliamentary elections."
     ),
     "information": "https://yle.fi/uutiset/3-10725384"
 }

@@ -13,13 +13,14 @@ survey](https://yle.fi/uutiset/3-10725384 "2019 YLE") for parliamentary
 electoral candidates, as well as the "expert level dataset" in the [2019 Chapel
 Hill expert survey](https://www.chesdata.eu/2019-chapel-hill-expert-survey
 "2019_CHES"). In principle, analogous methodology is applicable to any
-standardizable survey datasets. The main aim of this project to demonstrate
-layout of a Python data analysis project as well as setting up an interactive
-[Plotly Dash](https://dash.plotly.com/ "Dash") service for exploring the
-results.
+standardizable survey datasets. The main aim of this project to demo how an
+interactive [Plotly Dash](https://dash.plotly.com/ "Dash") service works for
+exploring the results. Nevertheless, closer examination of the results may
+reveal some interesting facts about present day politics such as clustering of
+typical questions regarding nationalism, multiculturalism, liberalism,
+left/right and so on.
 
-For opinionated discussion about analytical choices, see
-[Discussion](doc/discussion.md "Discussion").
+A version of the app is running at <https://political-projections.herokuapp.com>.
 
 
 <!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
@@ -39,12 +40,12 @@ For opinionated discussion about analytical choices, see
 
 ### Quick start
 
-Build and run application using Docker:
+Build and run application locally using Docker:
 ``` shell
 make up
 ```
 
-Stop the running container podman
+Stop the running container:
 ``` shell
 make stop
 ```
@@ -81,5 +82,4 @@ The Plotly Dash service can be launched with
 python app.py
 ```
 
-By default, the service runs at <http://localhost:8050>. There is also a
-[screenshot](doc/images/dash.png "Screenshot from the Dash app") just in case.
+By default, the service runs at <http://localhost:8050>.

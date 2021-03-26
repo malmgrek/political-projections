@@ -1,4 +1,5 @@
 dependencies:
+  - gunicorn
   - matplotlib
   - numpy
   - pandas

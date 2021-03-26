@@ -14,10 +14,18 @@ from dimred.datasets import ches2019, yle2019
 
 
 @pytest.mark.webtest
-def test_run_ches2019():
+def test_run_ches2019(tmp_path):
+
+    f = tmp_path / "foo/bar.csv"
+    f.parent.mkdir()
+    f.touch()
 
     raw = ches2019.download()
+    cleaned = ches2019.update(f)
+    loaded = ches2019.load(f)
+
     assert set(ches2019.features_bounds).issubset(raw.columns)
+    assert_frame_equal(cleaned, loaded)
 
     training_data = ches2019.prepare(
         ches2019.cleanup(raw, nan_floor_row=0, nan_floor_col=0)
@@ -46,10 +54,11 @@ def test_run_yle2019(tmp_path):
     f.parent.mkdir()
     f.touch()
 
-    raw = yle2019.update(f)
-    raw_loaded = yle2019.load(f)
+    raw = yle2019.download()
+    cleaned = yle2019.update(f)
+    loaded = yle2019.load(f)
 
-    assert_frame_equal(raw, raw_loaded)
+    assert_frame_equal(cleaned, loaded)
 
     assert raw.columns[6] == "Metsiä hakataan Suomessa liikaa."
     assert raw.columns[9] == "Euron ulkopuolella Suomi pärjäisi paremmin."

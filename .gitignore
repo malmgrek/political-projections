@@ -7,4 +7,3 @@ tmp/
 *.ipynb_checkpoints
 notebooks/*.html
 *cache-directory
-*cache

@@ -41,7 +41,7 @@ features_bounds = OrderedDict(
     forbid_energydrinks_u15=[1, 5],
     decrease_snus_import=[1, 5],
     equal_parental_leave=[1, 5],
-    extend_compulsory_education=[1, 5],
+    extend_education=[1, 5],
     fshift_summer_vacay=[1, 5],
     uni_qualvquant=[1, 5],
     immigrants_dangerous=[1, 5],
@@ -52,14 +52,14 @@ features_bounds = OrderedDict(
     hard_police=[1, 5],
     econ_inequality=[1, 5],
     individual_responsibility=[1, 5],
-    voters_lobby=[1, 5],
+    voter_loyalty=[1, 5],
     principles=[1, 5],
     political_correctness=[1, 5]
 )
 
 
 def download():
-    """Download an unzip
+    """Download and unzip the raw dataset
 
     """
     logging.info("GET {}".format(url))
@@ -68,17 +68,6 @@ def download():
     return pd.read_csv(
         BytesIO(zf.read("Avoin_data_eduskuntavaalit_2019_valintatiedot.csv"))
     )
-
-
-def update(filepath=here("cache", "yle2019.csv")):
-    x = download()
-    logging.info("Saved to file {}".format(filepath))
-    x.to_csv(filepath, index=False)
-    return x
-
-
-def load(filepath=here("cache", "yle2019.csv")):
-    return pd.read_csv(filepath)
 
 
 def cleanup(
@@ -100,6 +89,20 @@ def cleanup(
     return x
 
 
+def update(filepath=here("resources", "yle2019.csv")):
+    """Download and cache compressed dataset
+
+    """
+    x = cleanup(download(), nan_floor_row=0.9, nan_floor_col=0.75)
+    logging.info("Saved to file {}".format(filepath))
+    x.to_csv(filepath)
+    return x
+
+
+def load(filepath=here("resources", "yle2019.csv")):
+    return pd.read_csv(filepath, index_col=0)
+
+
 def create_scaler(X, features, normalize: bool):
     (a, b) = np.array([features_bounds[f] for f in features]).T
     return (
@@ -108,24 +111,23 @@ def create_scaler(X, features, normalize: bool):
     )
 
 
-def create_dataset(data, normalize: bool, impute: bool, corrcov: str):
+def create_training_data(
+        cleaned_data,
+        normalize: bool,
+        impute: bool,
+        corrcov: str
+):
     """Create training data, features list and scaler object
 
     """
 
-    training_data = cleanup(
-        data,
-        nan_floor_row=0.9,
-        nan_floor_col=0.75
-    )
-
     # Optionally impute
     X = (
-        analysis.impute_missing(training_data.values, max_iter=21)
+        analysis.impute_missing(cleaned_data.values, max_iter=21)
         if impute
-        else training_data.dropna().values
+        else cleaned_data.dropna().values
     )
-    features = list(training_data.columns)
+    features = list(cleaned_data.columns)
 
     # So that xs -> ys
     find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
@@ -144,3 +146,19 @@ def create_dataset(data, normalize: bool, impute: bool, corrcov: str):
     X = scaler.transform(X)
 
     return (X, ordered_features, scaler)
+
+
+#
+# Dash app related text fields etc
+#
+
+app_data = {
+    "title": "YLE 2019 Finnish electoral candidate survey",
+    "description": (
+        "Dimensionality reduction of the survey responses. Various common methods "
+        "are supported. The original set of survey questions has been reduced to "
+        "the politically 'most interesting' questions directly related to values, "
+        "economy, etc. Contains only those candidates who got through."
+    ),
+    "information": "https://yle.fi/uutiset/3-10725384"
+}

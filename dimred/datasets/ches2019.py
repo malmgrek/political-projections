@@ -86,30 +86,13 @@ def read_csv(res):
 
 
 def download():
-    """Download dataset from web
+    """Download the raw dataset from web
 
     """
     logging.info("GET {}".format(url))
     res = requests.get(url)
     res.raise_for_status()
     return read_csv(res)
-
-
-def update(filepath=here("cache", "ches2019.csv")):
-    """Download and save
-
-    """
-    x = download()
-    logging.info("Saved to file {}".format(filepath))
-    x.to_csv(filepath)
-    return x
-
-
-def load(filepath=here("cache", "ches2019.csv")):
-    """Load from disk
-
-    """
-    return pd.read_csv(filepath)
 
 
 def cleanup(
@@ -142,6 +125,20 @@ def prepare(
     return x.groupby(x[groupby_feature]).median()
 
 
+def update(filepath=here("resources", "ches2019.csv")):
+    """Download and save compressed dataset
+
+    """
+    x = prepare(cleanup(download(), nan_floor_row=0.9, nan_floor_col=0.75))
+    logging.info("Saved to file {}".format(filepath))
+    x.to_csv(filepath)
+    return x
+
+
+def load(filepath=here("resources", "ches2019.csv")):
+    return pd.read_csv(filepath, index_col=0)
+
+
 def create_scaler(X, features, normalize_bool):
     """Construct a scaler based on features
 
@@ -153,24 +150,23 @@ def create_scaler(X, features, normalize_bool):
     )
 
 
-def create_dataset(data, normalize: bool, impute: bool, corrcov: str):
+def create_training_data(
+        cleaned_data: pd.DataFrame,
+        normalize: bool,
+        impute: bool,
+        corrcov: str
+):
     """Create training data, features list and scaler object
 
     """
 
-    training_data = prepare(
-        cleanup(
-            data, nan_floor_row=0.9, nan_floor_col=0.75
-        )
-    )
-
     # Optionally impute
     X = (
-        analysis.impute_missing(training_data.values, max_iter=21)
+        analysis.impute_missing(cleaned_data.values, max_iter=21)
         if impute
-        else training_data.dropna().values
+        else cleaned_data.dropna().values
     )
-    features = list(training_data.columns)
+    features = list(cleaned_data.columns)
 
     # So that xs -> ys
     find_permutation = lambda xs, ys: [xs.index(y) for y in ys]
@@ -189,3 +185,19 @@ def create_dataset(data, normalize: bool, impute: bool, corrcov: str):
     X = scaler.transform(X)
 
     return (X, ordered_features, scaler)
+
+
+#
+# Dash app related text fields etc
+#
+
+app_data = {
+    "title": "Chapel Hill 2019 expert survey",
+    "description": (
+        "Dimensionality reduction of the survey responses. Various common methods "
+        "are supported. The original set of survey questions has been reduced to "
+        "the politically 'most interesting' questions directly related to values, "
+        "economy, etc."
+    ),
+    "information": "https://www.chesdata.eu/2019-chapel-hill-expert-survey"
+}

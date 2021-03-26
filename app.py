@@ -26,14 +26,15 @@ from plotly.subplots import make_subplots
 from scipy.cluster import hierarchy
 from scipy.stats import spearmanr
 
-from dimred import analysis, plot, utils
-from dimred.datasets.yle2019 import (
-    create_dataset,
-    download,
-    features_bounds,
-    load,
-    url
-)
+from dimred import analysis, plot
+from dimred.datasets import ches2019, yle2019
+
+
+datasets = {
+    "ches2019": ches2019,
+    "yle2019": yle2019
+}
+
 
 external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 
@@ -41,22 +42,30 @@ external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
 TIMEOUT = 10
 
 
-def deserialize(dataset):
+def throw(ex):
+    raise ex
+
+
+def checklist_to_bool(x):
+    return x is not None and "v" in x
+
+
+def deserialize(cache: str):
     """Deserialize a JSON dataset which has been updated
 
     """
 
-    if dataset is None:
+    if cache is None:
         raise PreventUpdate
 
-    dataset = json.loads(dataset)
-    X = np.asarray(dataset["X"])
-    features = dataset["features"]
-    scaler = analysis.AffineScaler.from_dict(dataset["scaler"])
+    cache = json.loads(cache)
+    X = np.asarray(cache["X"])
+    features = cache["features"]
+    scaler = analysis.AffineScaler.from_dict(cache["scaler"])
     return (X, features, scaler)
 
 
-def create_app(raw_data):
+def create_app():
     """Wrapper for creating the app
 
     Enables downloading the data to memory just once.
@@ -66,18 +75,11 @@ def create_app(raw_data):
     app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
     app.layout = html.Div([
-        html.H2(
-            "YLE 2019 Finland parlamentary elections candidate questionnaire"
-        ),
-        html.P(
-            "Dimension reduction with various methods of the results "
-            "for candidates that got through."
-        ),
+        html.H2(id="title"),
+        html.P(id="description"),
         html.A(
-            html.P(
-                "Source data"
-            ),
-            href=url,
+            html.P("More information"),
+            id="information",
             target="_blank"
         ),
         html.Div(
@@ -88,7 +90,20 @@ def create_app(raw_data):
                             style={"margin-top": "2em"}
                         ),
                         html.P(
-                            "Select dimensionality reduction method"
+                            "Select the dataset"
+                        ),
+                        dcc.Dropdown(
+                            id="dropdown-dataset",
+                            options=[
+                                {"label": "YLE 2019", "value": "yle2019"},
+                                {"label": "CHES 2019", "value": "ches2019"},
+                            ],
+                            value="yle2019",
+                            style={"width": "20em"}
+                        ),
+                        html.P(
+                            "Select dimensionality reduction method",
+                            style={"margin-top": "1em", "width": "20em"}
                         ),
                         dcc.Dropdown(
                             id="dropdown-method",
@@ -137,7 +152,7 @@ def create_app(raw_data):
                             options=[
                                 {"label": "Map to zero mean and unit variance", "value": "v"},
                             ],
-                            style={"margin-top": "2em", "width": "20em"}
+                            style={"margin-top": "4em", "width": "20em"}
                         ),
                         dcc.Checklist(
                             id="checklist-impute",
@@ -157,7 +172,7 @@ def create_app(raw_data):
                     style={"float": "left", "margin-left": "2em"}
                 )
             ],
-            style={"margin-bottom": "20em", "float": "top"}
+            style={"margin-bottom": "25em", "float": "top"}
         ),
         dcc.Loading(
             children=dcc.Graph(id="graph-training-heatmap"),
@@ -177,19 +192,43 @@ def create_app(raw_data):
 
 
     @app.callback(
+        [
+            Output("title", "children"),
+            Output("description", "children"),
+            Output("information", "href"),
+        ],
+        [
+            Input("dropdown-dataset", "value"),
+        ]
+    )
+    def update_metadata(dataset_name):
+        dataset = datasets[dataset_name]
+        return (
+            dataset.app_data["title"],
+            dataset.app_data["description"],
+            dataset.app_data["information"]
+        )
+
+
+
+    @app.callback(
         Output("cache", "data"),
         [
+            Input("dropdown-dataset", "value"),
             Input("checklist-normalize", "value"),
             Input("checklist-impute", "value"),
             Input("dropdown-corrcov", "value"),
         ]
     )
-    def Dataset(normalize, impute, corrcov):
+    def create_cache(dataset_name, normalize, impute, corrcov):
 
-        (X, features, scaler) = create_dataset(
-            data=raw_data,
-            normalize=utils.checklist_to_bool(normalize),
-            impute=utils.checklist_to_bool(impute),
+        dataset = datasets[dataset_name]
+        cleaned_data = dataset.load()
+
+        (X, features, scaler) = dataset.create_training_data(
+            cleaned_data,
+            normalize=checklist_to_bool(normalize),
+            impute=checklist_to_bool(impute),
             corrcov=corrcov
         )
 
@@ -210,9 +249,9 @@ def create_app(raw_data):
             Input("dropdown-corrcov", "value"),
         ]
     )
-    def update_training_heatmap(dataset, method, normalize, impute, corrcov):
+    def update_training_heatmap(cache, method, normalize, impute, corrcov):
 
-        (X, features, scaler) = deserialize(dataset)
+        (X, features, scaler) = deserialize(cache)
 
         # Plot dataset
         fig = px.imshow(
@@ -223,7 +262,8 @@ def create_app(raw_data):
             color_continuous_scale="Agsunset",
             title=(
                 "<b>Processed training data, shape: {}</b><br>".format(X.shape) +
-                "The features have been grouped with hierarchical clustering (see below image)."
+                "The features have been scaled and grouped with hierarchical " +
+                "clustering (see below image)."
             )
         )
 
@@ -240,9 +280,9 @@ def create_app(raw_data):
             Input("dropdown-corrcov", "value"),
         ]
     )
-    def update_corr_heatmap(dataset, method, normalize, impute, corrcov):
+    def update_corr_heatmap(cache, method, normalize, impute, corrcov):
 
-        (X, features, scaler) = deserialize(dataset)
+        (X, features, scaler) = deserialize(cache)
 
         C = np.cov(X.T) if corrcov == "cov" else spearmanr(X).correlation
 
@@ -342,6 +382,7 @@ def create_app(raw_data):
     @app.callback(
         Output("graph-components", "figure"),
         [
+            Input("dropdown-dataset", "value"),
             Input("cache", "data"),
             Input("dropdown-method", "value"),
             Input("checklist-normalize", "value"),
@@ -352,7 +393,8 @@ def create_app(raw_data):
         ]
     )
     def update_components(
-            dataset,
+            dataset_name,
+            cache,
             method,
             normalize,
             impute,
@@ -361,20 +403,21 @@ def create_app(raw_data):
             norint,
     ):
 
-        norint_bool = utils.checklist_to_bool(norint)
+        norint_bool = checklist_to_bool(norint)
         analyze = (
             analysis.analyze_pca if method == "pca" else
             analysis.analyze_ica if method == "ica" else
             analysis.analyze_fa if method == "fa" else
-            utils.throw(NotImplementedError("Method not supported"))
+            throw(NotImplementedError("Method not supported"))
         )
+        dataset = datasets[dataset_name]
 
-        (X, features, scaler) = deserialize(dataset)
+        (X, features, scaler) = deserialize(cache)
         num_samples = 10
         result = analyze(
             X,
             features,
-            features_bounds,
+            dataset.features_bounds,
             scaler,
             norint=norint_bool,
             components=components,
@@ -420,7 +463,7 @@ def create_app(raw_data):
                 "{0} components in original coordinate system".format(
                     components
                 ),
-                "Probability density",
+                "Probability density estimate (KDE)",
                 "Samples in 2D",
             ] + (
                 [
@@ -428,9 +471,8 @@ def create_app(raw_data):
                     "Explained variance ratio" if method == "pca" else ""
                 ]
             ) + (
-                ["Samples in original coordinates\n"] if method == "pca" else
-                ["Samples in original coordinates"] if method == "ica" else
-                ["Reverse transformation for factor analysis not supported :("]
+                ["Random samples in original coordinates"] if method in ["pca", "ica"]
+                else ["Reverse transformation for FA not currently supported :("]
             )
         )
 
@@ -631,21 +673,5 @@ def create_app(raw_data):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Foobar")
-    parser.add_argument(
-        "--offline",
-        help="Run app in offline mode",
-        action="store_true"
-    )
-    args = parser.parse_args()
-    offline = args.offline
-
-    try:
-        raw_data = load() if offline else download()
-    except Exception:
-        raw_data = load()
-        logging.warning("Something went wrong with downloading data, using cache.")
-
-    app = create_app(raw_data)
-
+    app = create_app()
     app.run_server(host="0.0.0.0", port="8050", debug=True)
